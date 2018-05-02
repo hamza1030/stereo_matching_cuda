@@ -2,6 +2,7 @@
 #include "stb_image.h"
 #include "stb_image_write.h"
 #include "filter.cuh"
+#include "costVolume.cuh"
 #include "systemIncludes.h"
 
 // int stbi_write_png(char const *filename, int w, int h, int comp, const void *data, int stride_in_bytes);
@@ -153,7 +154,7 @@ int main(int argc, char **argv)
 	int w2;
 	int h2;
 	int ch2;
-	unsigned char *data1 = stbi_load("im2.png", &w1, &h1, &ch1, 0);
+	unsigned char *data1 = stbi_load("./data/tsukuba0.png", &w1, &h1, &ch1, 0);
 	unsigned char *data2 = stbi_load("./data/tsukuba1.png", &w2, &h2, &ch2, 0);
 	int n1 = w1 * h1;
 	int n2 = w2 * h2;
@@ -164,24 +165,30 @@ int main(int argc, char **argv)
 	//end rgb to grayscale
 
 	//boxfilter and covariance
-	int wSize = 2 * wRadius + 1; //number of pixels in the window
 
-	unsigned char* mean = (unsigned char *)malloc(n1);
-	float* var = (float*)malloc(sizeof(float)*n1);
-
+	unsigned char* mean1 = (unsigned char *)malloc(n1);
+	unsigned char* mean2 = (unsigned char *)malloc(n2);
+	float* var1 = (float*)malloc(sizeof(float)*n1);
+	float* var2 = (float*)malloc(sizeof(float)*n2);
+	//memset(var1, 0, sizeof(float)*n1);
+	//memset(var2, 0, sizeof(float)*n2);
+	//memset(mean1, 0, sizeof(float)*n1);
+	//memset(mean2, 0, sizeof(float)*n2);
 
 	cout << I_l[0] << " ... " << endl;
-	cout << w1 << " ... " << endl;
-	cout << h1 << " ... " << endl;
-	filter(grayscale, w1, h1, mean, var, !cuda);
+	filter(data1, w1, h1, mean1, var1, !cuda);
+	filter(data2, w2, h2, mean2, var2, !cuda);
 	//end boxfilter and covariance
-	//Cost volume
+	//Cost volumeDD
 
+	float* cost = (float*)malloc(sizeof(float)*h1*w1*(D_MAX - D_MIN + 1));
+	memset(cost, 0, sizeof(float)*h1*w1*(D_MAX - D_MIN + 1));
+	compute_cost(I_l, I_r, cost, w1, w2, h1, h2);
 	//end cost volume
 
 	stbi_write_png("./data/image_left.png", w1, h1, 1, I_l, 0);
 	stbi_write_png("./data/image_right.png", w2, h2, 1, I_r, 0);
-	stbi_write_png("./data/image_mean.png", w1, h1, 1, mean, 0);
+	stbi_write_png("./data/image_mean.png", w1, h1, 1, mean1, 0);
 
 	free(grayscalecpu);
 	free(grayscale);
@@ -194,8 +201,12 @@ int main(int argc, char **argv)
 	stbi_image_free(data1);
 	stbi_image_free(data2);
 
-	free(mean);
-	free(var);
+	free(mean1);
+	free(mean2);
+	free(var1);
+	free(var2);
+
+	free(cost);
 
 	return 0;
 }
