@@ -9,7 +9,7 @@
 #define B_W 0.0721
 #define ALPHA 0.5
 #define D_MAX 2
-#define D_MIN -2
+#define D_MIN 0
 #define TH_grad 255
 #define TH_color 255
 

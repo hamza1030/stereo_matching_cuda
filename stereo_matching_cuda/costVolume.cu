@@ -16,10 +16,10 @@ void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int
 	CHECK(cudaMemcpy(d_i1, i1, w1 * h1, cudaMemcpyHostToDevice));
 	CHECK(cudaMemcpy(d_i2, i2, w2 * h2, cudaMemcpyHostToDevice));
 	CHECK(cudaMemcpy(d_cost, cost, sizeof(float)*size_cost, cudaMemcpyHostToDevice));
-	dim3 blockDim(12, 12, size_d);
+	dim3 blockDim(16, 16, size_d);
 	dim3 gridDim;
-	gridDim.x = iDivUp( w1*h1*size_d,blockDim.x);
-	gridDim.y = iDivUp( h1*w1*size_d, blockDim.y);
+	gridDim.x = iDivUp( w1 ,blockDim.x);
+	gridDim.y = iDivUp( h1, blockDim.y);
 	gridDim.z = 1;
 
 	costVolumOnGPU << <gridDim, blockDim >> > (d_i1, d_i2, d_cost, w1, w2, h1, h2, size_d);
@@ -60,16 +60,14 @@ __global__ void costVolumOnGPU(unsigned char* i1, unsigned char* i2, float* cost
 	int index_cost = id_cost(x,y,w1,h1,z); //volume (3D): for the zth number of the range [d_min, d_max] => i_cost = z*width*height + i
 	if (z < size_d && x < w1 && y < h1) {
 		// z in [0, len(d)[, x in [0, width[, y in [0, height[
-		if (x + z + D_MIN < w1 && x + z + D_MIN >= 0) {
+		float c = 0.0f;
+		c = (float)((1 - ALPHA) * TH_color + ALPHA * TH_grad);
+		if ((x + z + D_MIN < w1) && (x + z + D_MIN >= 0)) {
 
-			cost[index_cost] = (1 - ALPHA) * difference_term(i1[index_1], i2[index_2]) + ALPHA * difference_term_2(x_derivative(i1, x, index_1, w1), x_derivative(i2, x + D_MIN +z, index_2, w2));
-			printf("(%i,%i,%i) -> (%i,%i,%i) -> %f\n", x, y, z, index_1,index_2,index_cost, cost[index_cost]);
+			c = 1.0f*(1 - ALPHA) * difference_term(i1[index_1], i2[index_2]) + ALPHA * difference_term_2(x_derivative(i1, x, index_1, w1), x_derivative(i2, x + D_MIN +z, index_2, w2));
+			printf("(%i,%i,%i) -> (%i,%i,%i) -> %f\n", x, y, z, index_1,index_2,index_cost, c);
 		}
-		else {
-			printf("out of bounds (%i,%i,%i) -> (%i,%i,%i)\n -> %f\n", x, y, z, index_1, index_2, index_cost, cost[index_cost]);
-			cost[index_cost] =(float) ((1 - ALPHA) * TH_color + ALPHA * TH_grad);
-			
-		}
+		cost[index_cost] = c;
 	}
 }
 
@@ -97,6 +95,6 @@ __device__ float x_derivative(unsigned char* im, int col_index, int index, int w
 __device__ int difference_term(unsigned char pixel_i, unsigned char pixel_j) {
 	return min(abs((int)(pixel_i - pixel_j)), TH_color);
 }
-__device__ int difference_term_2(float pixel_i, float pixel_j) {
-	return min(abs(int(pixel_i - pixel_j)), TH_color);
+__device__ float difference_term_2(float pixel_i, float pixel_j) {
+	return min(abs(pixel_i - pixel_j), 1.0f*TH_grad);
 }
