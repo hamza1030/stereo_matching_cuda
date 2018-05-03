@@ -184,6 +184,11 @@ int main(int argc, char **argv)
 	float* cost = (float*)malloc(sizeof(float)*h1*w1*(D_MAX - D_MIN + 1));
 	memset(cost, 0, sizeof(float)*h1*w1*(D_MAX - D_MIN + 1));
 	compute_cost(I_l, I_r, cost, w1, w2, h1, h2);
+	/**
+	for (int i = 0; i < w1*h1*(D_MIN +D_MAX +1); i++) {
+		cout << cost[i] << endl;
+	}
+	**/
 	//end cost volume
 
 	stbi_write_png("./data/image_left.png", w1, h1, 1, I_l, 0);

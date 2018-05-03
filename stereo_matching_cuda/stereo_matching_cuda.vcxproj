@@ -22,6 +22,7 @@
   <ItemGroup>
     <CudaCompile Include="costVolume.cu" />
     <CudaCompile Include="filter.cu" />
+    <CudaCompile Include="guidedFilter.cu" />
     <CudaCompile Include="main.cu" />
     <CudaCompile Include="rgb_to_grayscale.cu" />
   </ItemGroup>
