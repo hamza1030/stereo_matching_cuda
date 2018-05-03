@@ -11,7 +11,6 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Clock.h" />
     <ClInclude Include="costVolume.cuh" />
     <ClInclude Include="filter.cuh" />
     <ClInclude Include="rgb_to_grayscale.cuh" />

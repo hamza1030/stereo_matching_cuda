@@ -1,7 +1,7 @@
 #include "costVolume.cuh"
 __host__ int iDivUp(int a, int b) { return (a % b != 0) ? (a / b + 1) : (a / b); }
 
-void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int w2, int h1, int h2) {
+void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int w2, int h1, int h2, bool host_gpu_compare) {
 	int size_d = D_MAX - D_MIN + 1;
 	int size_cost = h1 * w1*size_d;
 	unsigned char* d_i1;
@@ -11,7 +11,7 @@ void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int
 	memset(cost, 0, sizeof(float)*(size_cost));
 	memset(h_cost, 0, sizeof(float)*(size_cost));
 
-	
+
 
 	CHECK(cudaMalloc((unsigned char**)&d_i1, w1 * h1));
 	CHECK(cudaMalloc((unsigned char**)&d_i2, w2 * h2));
@@ -34,9 +34,11 @@ void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int
 	CHECK(cudaMemcpy(cost, d_cost, size_cost * sizeof(float), cudaMemcpyDeviceToHost));
 
 	//host side
-	costVolumeOnCPU(i1, i2, h_cost, w1, w2, h1, h2, size_d);
-	bool verif = check_errors_cost(h_cost, cost, size_cost);
-	if (verif) cout << "Cost Volume ok!" << endl;;
+	if (host_gpu_compare) {
+		costVolumeOnCPU(i1, i2, h_cost, w1, w2, h1, h2, size_d);
+		bool verif = check_errors_cost(h_cost, cost, size_cost);
+		if (verif) cout << "Cost Volume ok!" << endl;
+	}
 
 	// free device global memory
 	CHECK(cudaFree(d_cost));

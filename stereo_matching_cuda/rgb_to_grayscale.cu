@@ -1,5 +1,5 @@
 #include "rgb_to_grayscale.cuh"
-#include "Clock.h"
+
 
 void sumArraysOnHost(unsigned char* image, unsigned char* gray, const int N, int channels)
 {
@@ -23,7 +23,7 @@ __global__ void sumArraysOnGPU(unsigned char* image, unsigned char* gray, const 
 	}
 }
 
-unsigned char* rgb_to_grayscale(unsigned char* h_rgb, const int n, int channels, bool cuda)
+unsigned char* rgb_to_grayscale(unsigned char* h_rgb, const int n, int channels, bool host_gpu_compare)
 {
 	const int nRGB = n * channels;
 
@@ -35,14 +35,7 @@ unsigned char* rgb_to_grayscale(unsigned char* h_rgb, const int n, int channels,
 	memset(h_grayCPU, 0, n);
 	memset(h_gray, 0, n);
 
-	if (!cuda)
-	{
-		Clock clock;
-		clock.init();
-		sumArraysOnHost(h_rgb, h_grayCPU, n, channels);
-		clock.getTotalTime();
-		return h_grayCPU;
-	}
+	
 
 	unsigned char* d_gray;
 	unsigned char* d_rgb;
@@ -56,14 +49,10 @@ unsigned char* rgb_to_grayscale(unsigned char* h_rgb, const int n, int channels,
 
 	int ilen = 1024;
 	dim3 blockDim(ilen);
-	cout << " " << blockDim.x << endl;
 	int blockdimx = 1024;
 	if (blockDim.x < blockdimx) blockdimx = blockDim.x;
 	dim3 gridDim((n + blockDim.x - 1) / blockDim.x);
-	Clock clock;
-	clock.init();
 	sumArraysOnGPU << <gridDim, blockDim >> > (d_rgb, d_gray, n, channels);
-	clock.getTotalTime();
 	CHECK(cudaDeviceSynchronize());
 
 	// check kernel error
@@ -72,9 +61,28 @@ unsigned char* rgb_to_grayscale(unsigned char* h_rgb, const int n, int channels,
 	// copy kernel result back to host side
 	CHECK(cudaMemcpy(h_gray, d_gray, n, cudaMemcpyDeviceToHost));
 
+	if (host_gpu_compare)
+	{
+		sumArraysOnHost(h_rgb, h_grayCPU, n, channels);
+		bool verif = check_errors_grayscale(h_grayCPU, h_gray,n);
+		if (verif) cout << "RGB to grayscale ok!" << endl;
+	}
+
 	// free device global memory
 	CHECK(cudaFree(d_gray));
 	CHECK(cudaFree(d_rgb));
+	free(h_grayCPU);
+
 
 	return h_gray;
+}
+
+__host__ bool check_errors_grayscale(unsigned char * host, unsigned char * gpu, int len) {
+	bool res = true;
+	for (int i = 0; i < len; i++) {
+		if (gpu[i] != host[i]) {
+			res = false;
+		}
+	}
+	return res;
 }

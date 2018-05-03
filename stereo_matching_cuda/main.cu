@@ -4,6 +4,7 @@
 #include "filter.cuh"
 #include "costVolume.cuh"
 #include "systemIncludes.h"
+#include "guidedFilter.cuh"
 
 // int stbi_write_png(char const *filename, int w, int h, int comp, const void *data, int stride_in_bytes);
 // DOCUMENTATION
@@ -61,7 +62,7 @@
 
 int main(int argc, char **argv)
 {
-	bool cuda = false;
+	bool host_compare = true;
 	int wRadius = 3;
 
 	//// Image loading
@@ -104,9 +105,7 @@ int main(int argc, char **argv)
 	int n = width * height;
 	cout << n << endl;
 
-	unsigned char* grayscalewarmup = rgb_to_grayscale(data, n, channels_in_file, !cuda);
-	unsigned char* grayscale = rgb_to_grayscale(data, n, channels_in_file, !cuda);
-	unsigned char* grayscalecpu = rgb_to_grayscale(data, n, channels_in_file, cuda);
+	unsigned char* grayscale = rgb_to_grayscale(data, n, channels_in_file, !host_compare);
 
 	stbi_write_png("image_gray.png", width, height, 1, grayscale, 0);
 
@@ -158,59 +157,40 @@ int main(int argc, char **argv)
 	unsigned char *data2 = stbi_load("./data/tsukuba1.png", &w2, &h2, &ch2, 0);
 	int n1 = w1 * h1;
 	int n2 = w2 * h2;
-
+	cout << "Resolution : " << w1 << "x" << h1 << endl;
 	//rgb to grayscale
-	unsigned char* I_l = rgb_to_grayscale(data1, n1, ch1, !cuda);
-	unsigned char* I_r = rgb_to_grayscale(data2, n2, ch2, !cuda);
+	unsigned char* I_l = rgb_to_grayscale(data1, n1, ch1, host_compare);
+	unsigned char* I_r = rgb_to_grayscale(data2, n2, ch2, host_compare);
 	//end rgb to grayscale
 
-	//boxfilter and covariance
-
-	unsigned char* mean1 = (unsigned char *)malloc(n1);
-	unsigned char* mean2 = (unsigned char *)malloc(n2);
-	float* var1 = (float*)malloc(sizeof(float)*n1);
-	float* var2 = (float*)malloc(sizeof(float)*n2);
-	//memset(var1, 0, sizeof(float)*n1);
-	//memset(var2, 0, sizeof(float)*n2);
-	//memset(mean1, 0, sizeof(float)*n1);
-	//memset(mean2, 0, sizeof(float)*n2);
-
-	cout << I_l[0] << " ... " << endl;
-	filter(data1, w1, h1, mean1, var1, !cuda);
-	filter(data2, w2, h2, mean2, var2, !cuda);
-	//end boxfilter and covariance
-	//Cost volumeDD
-
-	float* cost = (float*)malloc(sizeof(float)*h1*w1*(D_MAX - D_MIN + 1));
+	
+	//Cost volume
+	int size_d = D_MAX - D_MIN + 1;
+	float* cost = (float*)malloc(sizeof(float)*h1*w1*size_d);
 	memset(cost, 0, sizeof(float)*h1*w1*(D_MAX - D_MIN + 1));
-	compute_cost(I_l, I_r, cost, w1, w2, h1, h2);
-	/**
-	for (int i = 0; i < w1*h1*(D_MIN +D_MAX +1); i++) {
-		cout << cost[i] << endl;
-	}
-	**/
+	compute_cost(I_l, I_r, cost, w1, w2, h1, h2, host_compare);
 	//end cost volume
+
+	//guided Filter
+	unsigned char* mean1 = (unsigned char*)malloc(n1);
+	unsigned char* mean2 = (unsigned char*)malloc(n2);
+	compute_guided_filter(I_l, I_r, cost, mean1, mean2, w1, h1, w2, h2, size_d, host_compare);
+	//end guided Filter
+
 
 	stbi_write_png("./data/image_left.png", w1, h1, 1, I_l, 0);
 	stbi_write_png("./data/image_right.png", w2, h2, 1, I_r, 0);
 	stbi_write_png("./data/image_mean.png", w1, h1, 1, mean1, 0);
 
-	free(grayscalecpu);
+
 	free(grayscale);
-	free(grayscalewarmup);
-
 	stbi_image_free(data);
-
 	free(I_l);
 	free(I_r);
 	stbi_image_free(data1);
 	stbi_image_free(data2);
-
 	free(mean1);
 	free(mean2);
-	free(var1);
-	free(var2);
-
 	free(cost);
 
 	return 0;
