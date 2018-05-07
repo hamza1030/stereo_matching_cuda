@@ -13,6 +13,7 @@
   <ItemGroup>
     <ClInclude Include="costVolume.cuh" />
     <ClInclude Include="filter.cuh" />
+    <ClInclude Include="occlusion.cuh" />
     <ClInclude Include="rgb_to_grayscale.cuh" />
     <ClInclude Include="stb_image.h" />
     <ClInclude Include="stb_image_write.h" />
@@ -23,6 +24,7 @@
     <CudaCompile Include="filter.cu" />
     <CudaCompile Include="guidedFilter.cu" />
     <CudaCompile Include="main.cu" />
+    <CudaCompile Include="occlusion.cu" />
     <CudaCompile Include="rgb_to_grayscale.cu" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
