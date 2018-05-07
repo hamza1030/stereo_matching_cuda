@@ -89,15 +89,18 @@ void costVolumeOnCPU(unsigned char* i1, unsigned char* i2, float* cost, int w1, 
 __global__ void costVolumOnGPU2(unsigned char* i1, unsigned char* i2, float* cost, int w1, int w2, int h1, int h2, int size_d) {
 	int x = blockDim.x*blockIdx.x + threadIdx.x;
 	int y = blockDim.y*blockIdx.y + threadIdx.y;
+	float alpha = 1.0f*ALPHA;
+	float th_color = 1.0f*TH_color;
+	float th_grad = 1.0f*TH_grad;
 	int idx = x % w1;
 	int idy = x / w1;
 	int id = y*w1*h1 + x;
 	int d = -D_MIN + y; //-D_MIN + y;
 	if (y < size_d && x < w1*h1) {
-		float c = (1.0f - 1.0f*ALPHA) * (1.0f*TH_color) + (1.0f*ALPHA) * (1.0f*TH_grad);
+		float c = (1 - alpha) * th_color + alpha * th_grad;
 		if (((idx + d) < w2) && ((idx + d) >= 0)) 
 		{
-			c = (1.0f - 1.0f*ALPHA)*difference_term(i1[x], i2[x + d]) + (1.0f*ALPHA) * difference_term_2(x_derivative(i1, idx, x, w1), x_derivative(i2, idx + d, x + d, w2));
+			c = (1 - alpha)*difference_term(i1[x], i2[x + d]) + alpha * difference_term_2(x_derivative(i1, idx, x, w1), x_derivative(i2, idx + d, x + d, w2));
 		}
 		cost[id] = c;
 		//printf("%f\n", c);

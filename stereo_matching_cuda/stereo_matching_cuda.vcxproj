@@ -13,6 +13,8 @@
   <ItemGroup>
     <ClInclude Include="costVolume.cuh" />
     <ClInclude Include="filter.cuh" />
+    <ClInclude Include="guidedFilter.cuh" />
+    <ClInclude Include="integral.cuh" />
     <ClInclude Include="rgb_to_grayscale.cuh" />
     <ClInclude Include="stb_image.h" />
     <ClInclude Include="stb_image_write.h" />
@@ -22,6 +24,7 @@
     <CudaCompile Include="costVolume.cu" />
     <CudaCompile Include="filter.cu" />
     <CudaCompile Include="guidedFilter.cu" />
+    <CudaCompile Include="integral.cu" />
     <CudaCompile Include="main.cu" />
     <CudaCompile Include="rgb_to_grayscale.cu" />
   </ItemGroup>
