@@ -1,148 +1,157 @@
 #include "guidedFilter.cuh"
 
-void compute_guided_filter(unsigned char* i1, unsigned char* i2, float* cost, float* filtered ,unsigned char* mean1, unsigned char* mean2, int w1, int h1, int w2, int h2, int size_d, bool host_gpu_compare) {
-	int n1 = w1 * h1;
-	int n2 = w2 * h2;
-	int volume = size_d * w1*h1;
-	int n1_fl = sizeof(float)*n1;
-	int n2_fl = sizeof(float)*n2;
+void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsigned char* mean,const int w, const int h, const int size_d, bool host_gpu_compare) {
+	int n = w * h;
+	int volume = size_d * w*h;
+	int n_fl = sizeof(float)*n;
 	int radius = 1 * RADIUS;
  	//1st step : compute mean filter and its covariance
 	// GPU var
-	unsigned char* d_i1;
-	unsigned char* d_i2;
-	unsigned char* d_mean1;
-	unsigned char* d_mean2;
-	float* d_im1;
-	float* d_im2;
-	float* d_mean_im1;
-	float* d_mean_im2;
-	float* d_var_im1;
-	float* d_var_im2;
+	unsigned char* d_i;
+	unsigned char* d_mean;
+	float* d_im;
+	float* d_mean_im;
+	float* d_var_im;
 
 	//CPU var
-	float* h_im1 = (float*) malloc(n1_fl);
-	float* h_im2 = (float*) malloc(n2_fl);
-	float* h_mean_im1 = (float*) malloc (n1_fl);
-	float* h_mean_im2 = (float*) malloc (n2_fl);
-	float* h_var_im1 = (float*)malloc(n1_fl);
-	float* h_var_im2 = (float*)malloc(n2_fl);
+	float* h_im = (float*) malloc(n_fl);
+	float* h_mean_im = (float*) malloc (n_fl);
+	float* h_var_im = (float*)malloc(n_fl);
+
 
 	//memset
-	memset(mean1, 0, n1);
-	memset(mean2, 0, n2);
-	memset(h_im1, 0.0f, n1_fl);
-	memset(h_im2, 0.0f, n2_fl);
-	memset(h_mean_im1, 0.0f, n1_fl);
-	memset(h_mean_im2, 0.0f, n2_fl);
-	memset(h_var_im1, 0.0f, n1_fl);
-	memset(h_var_im2, 0.0f, n2_fl);
+	memset(mean, 0, n);
+	memset(h_im, 0.0f, n_fl);
+	memset(h_mean_im, 0.0f, n_fl);
+	memset(h_var_im, 0.0f, n_fl);
+
 
 	//cuda malloc
-	CHECK(cudaMalloc((unsigned char**)&d_i1, n1));
-	CHECK(cudaMalloc((unsigned char**)&d_i2, n2));
-	CHECK(cudaMalloc((unsigned char**)&d_mean1, n1));
-	CHECK(cudaMalloc((unsigned char**)&d_mean2, n2));
-	CHECK(cudaMalloc((void**)&d_im1, n1_fl));
-	CHECK(cudaMalloc((void**)&d_im2, n2_fl));
-	CHECK(cudaMalloc((void**)&d_mean_im1, n1_fl));
-	CHECK(cudaMalloc((void**)&d_mean_im2, n2_fl));
-	CHECK(cudaMalloc((void**)&d_var_im1, n1_fl));
-	CHECK(cudaMalloc((void**)&d_var_im2, n2_fl));
+	CHECK(cudaMalloc((unsigned char**)&d_i, n));
+	CHECK(cudaMalloc((unsigned char**)&d_mean, n));
+	CHECK(cudaMalloc((void**)&d_im, n_fl));
+	CHECK(cudaMalloc((void**)&d_mean_im, n_fl));
+	CHECK(cudaMalloc((void**)&d_var_im, n_fl));
+
 
 	//cuda memcpy host -> device
-	CHECK(cudaMemcpy(d_i1, i1, n1, cudaMemcpyHostToDevice));
-	CHECK(cudaMemcpy(d_i2, i2, n2, cudaMemcpyHostToDevice));
-	CHECK(cudaMemcpy(d_mean1, mean1, n1, cudaMemcpyHostToDevice));
-	CHECK(cudaMemcpy(d_mean2, mean2, n2, cudaMemcpyHostToDevice));
-	CHECK(cudaMemcpy(d_im1, h_im1, n1_fl, cudaMemcpyHostToDevice));
-	CHECK(cudaMemcpy(d_im2, h_im2, n2_fl, cudaMemcpyHostToDevice));
-	CHECK(cudaMemcpy(d_mean_im1, h_mean_im1, n1_fl, cudaMemcpyHostToDevice));
-	CHECK(cudaMemcpy(d_mean_im2, h_mean_im2, n2_fl, cudaMemcpyHostToDevice));
-	CHECK(cudaMemcpy(d_var_im1, h_var_im1, n1_fl, cudaMemcpyHostToDevice));
-	CHECK(cudaMemcpy(d_var_im2, h_var_im2, n2_fl, cudaMemcpyHostToDevice));
+	CHECK(cudaMemcpy(d_i, i, n, cudaMemcpyHostToDevice));
+	CHECK(cudaMemcpy(d_mean, mean, n, cudaMemcpyHostToDevice));
+	CHECK(cudaMemcpy(d_im, h_im, n_fl, cudaMemcpyHostToDevice));
+	CHECK(cudaMemcpy(d_mean_im, h_mean_im, n_fl, cudaMemcpyHostToDevice));
+	CHECK(cudaMemcpy(d_var_im, h_var_im, n_fl, cudaMemcpyHostToDevice));
+
 
 	dim3 blockDim(128);
-	dim3 gridDim ((n1 + blockDim.x - 1) / blockDim.x);
+	dim3 gridDim ((n + blockDim.x - 1) / blockDim.x);
 	//im unsigned char -> float
-	chToFlOnGPU << <gridDim, blockDim >> > (d_i1, d_im1, n1);
-	gridDim.x = (n2 + blockDim.x - 1) / blockDim.x;
-	chToFlOnGPU << <gridDim, blockDim >> > (d_i2, d_im2, n2);
+	chToFlOnGPU << <gridDim, blockDim >> > (d_i, d_im, n);
+
 	
 
 	//Compute Integral im1
-	CHECK(cudaMemcpy(h_im1, d_im1, n1_fl, cudaMemcpyDeviceToHost));
-	int im = i1[120];
-	float im2 = h_im1[120];
-	float* integral_im1 = (float*)malloc(n1_fl);
-	memset(integral_im1, 0.0f, n1_fl);
-	integral(h_im1, integral_im1, w1, h1);
+	CHECK(cudaMemcpy(h_im, d_im, n_fl, cudaMemcpyDeviceToHost));
+
+	float* integral_im = (float*)malloc(n_fl);
+	memset(integral_im, 0.0f, n_fl);
+	integral(h_im, integral_im, w, h);
 	/**
 	cout << "im(0,0) = " << h_im1[0] << " int(0,0) = " << integral_im1[0] << endl;
 	cout << "im(0,1) = " << h_im1[1] << " int(0,1) = " << integral_im1[1] << endl;
 	cout << "im(0,2) = " << h_im1[2] << " int(0,2) = " << integral_im1[2] << endl;
 	cout << "im(0,3) = " << h_im1[3] << " int(0,3) = " << integral_im1[3] << endl;
 	**/
-	float* d_integral_im1;
-	CHECK(cudaMalloc((void**)&d_integral_im1, n1_fl));
-	CHECK(cudaMemcpy(d_integral_im1, integral_im1, n1_fl, cudaMemcpyHostToDevice));
-	dim3 y1(16, 16);
-	dim3 x1((w1 + y1.x - 1) / y1.x, (h1 + y1.y - 1) / y1.y);
-	computeBoxFilter << < x1, y1 >> >(d_im1, d_integral_im1, d_mean_im1, (const int) w1, (const int) h1);
-	gridDim.x = (n1 + blockDim.x -1) / blockDim.x;
-	flToChOnGPU << <gridDim, blockDim >> > (d_mean_im1, d_mean1, n1);
+	float* d_integral_im;
+	CHECK(cudaMalloc((void**)&d_integral_im, n_fl));
+	CHECK(cudaMemcpy(d_integral_im, integral_im, n_fl, cudaMemcpyHostToDevice));
+	dim3 y(16, 16);
+	dim3 x((w + y.x - 1) / y.x, (h + y.y - 1) / y.y);
+	computeBoxFilter << < x, y >> >(d_im, d_integral_im, d_mean_im, (const int) w, (const int) h);
+	gridDim.x = (n + blockDim.x -1) / blockDim.x;
+	flToChOnGPU << <gridDim, blockDim >> > (d_mean_im, d_mean, n);
+
+	
+	//compute variance
+	float* d_imSquare;
+	float* d_meanSquare;
+	float* d_integral_square;
+	float* d_temp;
+	float* imSquare = (float*)malloc(n_fl);
+	float* integral_square = (float*)malloc(n_fl);
+	memset(integral_square, 0, n_fl);
+	memset(imSquare, 0, n_fl);
+	CHECK(cudaMalloc((void**)&d_imSquare, n_fl));
+	CHECK(cudaMalloc((void**)&d_meanSquare, n_fl));
+	CHECK(cudaMalloc((void**)&d_integral_square, n_fl));
+	CHECK(cudaMalloc((void**)&d_temp, n_fl));
+	CHECK(cudaMemcpy(d_imSquare, integral_square, n_fl, cudaMemcpyHostToDevice));
+	CHECK(cudaMemcpy(d_meanSquare, integral_square, n_fl, cudaMemcpyHostToDevice));
+	CHECK(cudaMemcpy(d_integral_square, integral_square, n_fl, cudaMemcpyHostToDevice));
+	CHECK(cudaMemcpy(d_temp, integral_square, n_fl, cudaMemcpyHostToDevice));
+	dim3 mult(1024);
+	dim3 gmult((n + mult.x - 1) / mult.x);
+	pixelMultOnGPU << < gmult, mult >> > (d_im, d_im, d_imSquare1, n1);
+	pixelMultOnGPU << < gmult, mult >> > (d_mean_im, d_mean_im, d_meanSquare, n);
+	CHECK(cudaMemcpy(imSquare, d_imSquare, n_fl, cudaMemcpyDeviceToHost));
+	integral(imSquare, integral_square, w, h);
+	CHECK(cudaMemcpy(d_integral_square, integral_square, n_fl, cudaMemcpyHostToDevice));
+	computeBoxFilter << < x, y >> >(d_imSquare, d_integral_square, d_temp, (const int)w, (const int)h);
+	pixelSousOnGPU << <gridDim, blockDim >> > (d_temp, d_meanSquare, d_var_im,n);
+	
+	//compute pk, a_k and b_k
+	float* d_ak;
+	float* d_bk;
+	float* d_pk;
+	CHECK(cudaMalloc((void**)&d_ak, n_fl));
+	CHECK(cudaMalloc((void**)&d_pk, n_fl*size_d));
+	CHECK(cudaMalloc((void**)&d_bk, n_fl));
+	for (int i = 0; i < size[d], i++) {
+
+	}
+
+	//compute ai, bi and finally qi
 
 
-	//compute intgral im2
-	CHECK(cudaMemcpy(h_im2, d_im2, n2_fl, cudaMemcpyDeviceToHost));
-	float* integral_im2 = (float*)malloc(n2_fl);
-	memset(integral_im2, 0.0f, n2_fl);
-	integral(h_im2, integral_im2, w2, h2);
-	float* d_integral_im2;
-	CHECK(cudaMalloc((void**)&d_integral_im2, n2_fl));
-	CHECK(cudaMemcpy(d_integral_im2, integral_im2, n2_fl, cudaMemcpyHostToDevice));
-	dim3 y2(16,16);
-	dim3 x2((w2 + y2.x - 1) / y2.x, (h2 + y2.y - 1) / y2.y);
-	computeBoxFilter << < x2, y2 >> >(d_im2, d_integral_im2, d_mean_im2, (const int)w2, (const int)h2);
-	gridDim.x = (n2 + blockDim.x - 1) / blockDim.x;
-	flToChOnGPU << <gridDim, blockDim >> > (d_mean_im2, d_mean2, n2);
-	
-	
-	//compute mean im1
-	
 
-	//compute mean im2
+
+
+
+
+
+
+
+
+
+
+
+
 
 	CHECK(cudaDeviceSynchronize());
 	CHECK(cudaGetLastError());
 
 
-	CHECK(cudaMemcpy(mean1, d_mean1, n1, cudaMemcpyDeviceToHost));
-	CHECK(cudaMemcpy(mean2, d_mean2, n2, cudaMemcpyDeviceToHost));
+	CHECK(cudaMemcpy(mean, d_mean, n, cudaMemcpyDeviceToHost));
+	CHECK(cudaMemcpy(h_var_im, d_var_im, n_fl, cudaMemcpyDeviceToHost));
 	//free cuda memory
-	CHECK(cudaFree(d_i1));
-	CHECK(cudaFree(d_i2));
-	CHECK(cudaFree(d_mean1));
-	CHECK(cudaFree(d_mean2));
-	CHECK(cudaFree(d_im1));
-	CHECK(cudaFree(d_im2));
-	CHECK(cudaFree(d_mean_im1));
-	CHECK(cudaFree(d_mean_im2));
-	CHECK(cudaFree(d_var_im1));
-	CHECK(cudaFree(d_var_im2));
-	CHECK(cudaFree(d_integral_im1));
-	CHECK(cudaFree(d_integral_im2));
+	CHECK(cudaFree(d_i));
+	CHECK(cudaFree(d_mean));
+	CHECK(cudaFree(d_im));
+	CHECK(cudaFree(d_mean_im));
+	CHECK(cudaFree(d_var_im));
+	CHECK(cudaFree(d_integral_im));
+	CHECK(cudaFree(d_integral_square));
+	CHECK(cudaFree(d_imSquare));
+	CHECK(cudaFree(d_temp));
+	CHECK(cudaFree(d_meanSquare));
 
 
 	//free ram memory
-	free(h_im1);
-	free(h_im2);
-	free(h_mean_im1);
-	free(h_mean_im2);
-	free(h_var_im1);
-	free(h_var_im2);
-	free(integral_im1);
-	free(integral_im2);
+	free(h_im);
+	free(h_mean_im);
+	free(h_var_im);
+	free(integral_im);
+	free(integral_square);
+
 }
 
 //CPU functions
@@ -215,8 +224,8 @@ __global__ void computeBoxFilter(float* image, float* integral, float* mean, con
 __device__ float computeMean(float* I, float* S, int idx, int idy, const int w, const int h) {
 	int i_x = max(idx - RADIUS, 0);
 	int i_y = max(idy - RADIUS, 0);
-	int j_x = min((idx + RADIUS + 1), w - 1);
-	int j_y = min((idy + RADIUS + 1), h - 1);
+	int j_x = min((idx + RADIUS), w-1);
+	int j_y = min((idy + RADIUS), h-1);
 	float S_1 = S[j_y*w + j_x];
 	float S_2 = (i_x<1) ? 0 : S[j_y*w + (i_x - 1)];
 	float S_3 = (i_y<1) ? 0 : S[(i_y - 1)*w + j_x];

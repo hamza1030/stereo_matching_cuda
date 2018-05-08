@@ -1,7 +1,6 @@
 #include "SystemIncludes.h"
 #include "integral.cuh"
-
-void compute_guided_filter(unsigned char* i1, unsigned char* i2, float* cost, float* fileterd,unsigned char* mean1, unsigned char* mean2, int w1, int h1, int w2, int h2, int size_d, bool host_gpu_compare);
+void compute_guided_filter(unsigned char* i, float* cost, float* filtered, unsigned char* mean, const int w, const int h, const int size_d, bool host_gpu_compare);
 
 
 __host__ void chToFlOnCPU(unsigned char* image, float* result, int len);

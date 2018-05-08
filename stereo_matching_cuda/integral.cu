@@ -70,7 +70,7 @@ __global__ void rowSum(float * image, float * integral, const int w, const int h
 	{
 		
 		integral[idy*w + idx] = image[idy*w + idx] + integral[idy*w + idx -1];
-		__syncthreads();
+		//__syncthreads();
 	}
 }
 
@@ -81,7 +81,7 @@ __global__ void colSum(float * image, float * integral, const int w, const int h
 	for (int idy = 1; idy < h; idy++)
 	{
 		integral[idy*w +idx] = image[idy*w + idx] + integral[(idy-1)*w + idx];
-		__syncthreads();
+		//__syncthreads();
 	}
 
 }
