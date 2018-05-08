@@ -1,6 +1,11 @@
 #include "SystemIncludes.h"
 
 
+// dOcclusion = (dMin - 1)
+// dLR = 0
 
-__global__ void occlusionOnGpu(unsigned char* image, unsigned char* mean, int width, int height);
-void detect_occlusion(unsigned char* il, unsigned char* ir, float* cost, int w1, int w2, int h1, int h2, bool host_gpu_compare)
+void detect_occlusion(float* disparityLeft, float* disparityRight, const float dOcclusion, const int dLR, const int w, const int h);
+__global__ void detect_occlusionOnGPU(float* disparityLeft, float* disparityRight, const float dOcclusion, const int dLR, const int w, const int h);
+
+void detect_occlusionOnCPU(float* disparityLeft, float* disparityRight, const float dOcclusion, const int dLR, const int w, const int h);
+
