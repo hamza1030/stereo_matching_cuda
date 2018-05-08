@@ -34,7 +34,7 @@ void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int
 	//host side
 	if (host_gpu_compare) {
 		costVolumeOnCPU(i1, i2, h_cost, w1, w2, h1, h2, size_d);
-		bool verif = check_errors_cost(h_cost, cost, size_cost);
+		bool verif = check_errors(h_cost, cost, size_cost);
 		if (verif) cout << "Cost Volume ok!" << endl;
 	}
 
@@ -45,17 +45,7 @@ void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int
 	free(h_cost);
 }
 
-bool check_errors_cost(float* resCPU, float* resGPU, int len) {
-	bool res = true;
-	for (int i = 0; i < len; i++) {
-		//cout << i << " ResultGPU = " << resGPU[i] << " and ResultCPU= " << resCPU[i] << endl;
-		if (resCPU[i] != resGPU[i]) {
-			res = false;
-			cout << "error at element: " << i << " ResultGPU = " << resGPU[i] << " and ResultCPU= " << resCPU[i] << endl;
-		}
-	}
-	return res;
-}
+
 
 void costVolumeOnCPU(unsigned char* i1, unsigned char* i2, float* cost, int w1, int w2, int h1, int h2, int size_d) {
 	float alpha = 1.0f*ALPHA;
@@ -85,9 +75,14 @@ __global__ void costVolumOnGPU2(unsigned char* i1, unsigned char* i2, float* cos
 	int x = blockDim.x*blockIdx.x + threadIdx.x;
 	// y threads for d [0, size_d]
 	int y = blockDim.y*blockIdx.y + threadIdx.y;
-	// col index in the image
-	int idx = x % w1;
+
+	float alpha = 1.0f*ALPHA;
+	float th_color = 1.0f*TH_color;
+	float th_grad = 1.0f*TH_grad;
+
 	// row index in the image
+	int idx = x % w1;
+	// col index in the image
 	int idy = x / w1;
 	// index [0, w*h*size_d]
 	int id = y * w1*h1 + x;
@@ -96,79 +91,78 @@ __global__ void costVolumOnGPU2(unsigned char* i1, unsigned char* i2, float* cos
 
 	if (y < size_d && x < w1*h1) {
 		// threshold
-		float c = (1.0f - 1.0f*ALPHA) * (1.0f*TH_color) + (1.0f*ALPHA) * (1.0f*TH_grad);
-
-		if (((idx + d) < w2) && ((idx + d) >= 0))
+		float c = (1 - alpha) * th_color + alpha * th_grad;
+		if (((idx + d) < w2) && ((idx + d) >= 0)) 
 		{
-			c = (1.0f - 1.0f*ALPHA)*difference_term(i1[x], i2[x + d]) + (1.0f*ALPHA) * difference_term_2(x_derivative(i1, idx, x, w1), x_derivative(i2, idx + d, x + d, w2));
+			c = (1 - alpha)*difference_term(i1[x], i2[x + d]) + alpha * difference_term_2(x_derivative(i1, idx, x, w1), x_derivative(i2, idx + d, x + d, w2));
 		}
 		cost[id] = c;
 		//printf("%f\n", c);
 
-		float* q;
-		// TODO filter
-		q[id] = 0;
+		//float* q;
+		//// TODO filter
+		//q[id] = 0;
 
-		__syncthreads();
+		//__syncthreads();
 
-		// disparity selection - blockDim should be SIZE_1D !!!
+		//// disparity selection - blockDim should be SIZE_1D !!!
 
-		// fill with 0
-		__shared__ float bestDisparity[SIZE_1D];
-		// fill with 100000
-		__shared__ float bestCost[SIZE_1D];
+		//// fill with 0
+		//__shared__ float bestDisparity[SIZE_1D];
+		//// fill with 100000
+		//__shared__ float bestCost[SIZE_1D];
 
-		bestDisparity[threadIdx.x] = 0;
-		bestCost[threadIdx.x] = 0;
+		//bestDisparity[threadIdx.x] = 0;
+		//bestCost[threadIdx.x] = 0;
 
-		__syncthreads();
+		//__syncthreads();
 
-		if (q[id] < bestCost[threadIdx.x])
-		{
-			bestCost[threadIdx.x] = q[id];
-			bestDisparity[threadIdx.x] = d;
-		}
+		//if (q[id] < bestCost[threadIdx.x])
+		//{
+		//	bestCost[threadIdx.x] = q[id];
+		//	bestDisparity[threadIdx.x] = d;
+		//}
 
-		__syncthreads();
+		//__syncthreads();
 
-		// output to add in param - size w*h - fill with 0
-		float* disparityMap;
-		disparityMap[x] = bestDisparity[threadIdx.x];
+		//// output to add in param - size w*h - fill with 0
+		//float* disparityMap;
+		//disparityMap[x] = bestDisparity[threadIdx.x];
 	}
 
-	extern __shared__ float temp[];
-	// for shared memory
-	int tdx = threadIdx.x;
-	// to cumSum one row - for w = 1080, we need 540 threads
-	int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	// for each row
-	int idy = blockIdx.y * blockDim.y + threadIdx.y;
+	//extern __shared__ float temp[];
+	//// for shared memory
+	//int tdx = threadIdx.x;
+	//// to cumSum one row - for w = 1080, we need 540 threads
+	//int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	//// for each row
+	//int idy = blockIdx.y * blockDim.y + threadIdx.y;
 
-	int idxEven = idx * 2 + idy * w;
-	int idxOdd = idx * 2 + 1 + idy * w;
+	//int idxEven = idx * 2 + idy * w;
+	//int idxOdd = idx * 2 + 1 + idy * w;
 
-	int offset = 1;
+	//int offset = 1;
 
-	temp[2 * tdx] = input[idxEven];
-	temp[2 * tdx + 1] = input[idxOdd];
+	//temp[2 * tdx] = input[idxEven];
+	//temp[2 * tdx + 1] = input[idxOdd];
 
-	for (int nSum = B_SIZE / 2; nSum > 0; nSum /= 2)
-	{ 
-		__syncthreads();
-		if (tdx < nSum)
-		{
-			int a = offset * (2 * tdx + 1) - 1;
-			int b = offset * (2 * tdx + 2) - 1;
-			temp[b] += temp[a];
-		}
-		offset *= 2;
-	}
+	//for (int nSum = B_SIZE / 2; nSum > 0; nSum /= 2)
+	//{ 
+	//	__syncthreads();
+	//	if (tdx < nSum)
+	//	{
+	//		int a = offset * (2 * tdx + 1) - 1;
+	//		int b = offset * (2 * tdx + 2) - 1;
+	//		temp[b] += temp[a];
+	//	}
+	//	offset *= 2;
+	//}
 
-	__syncthreads();
+	//__syncthreads();
 
-	//Write output (size h)
-	output[2 * tdx] = temp[2 * tdx];
-	output[2 * tdx + 1] = temp[2 * tdx + 1];
+	////Write output (size h)
+	//output[2 * tdx] = temp[2 * tdx];
+	//output[2 * tdx + 1] = temp[2 * tdx + 1];
 }
 
 __device__ int id_im(int i, int j, int width) {

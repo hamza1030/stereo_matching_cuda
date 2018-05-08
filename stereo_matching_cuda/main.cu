@@ -101,13 +101,14 @@ int main(int argc, char **argv)
 	CHECK(cudaGetDeviceProperties(&deviceProp, dev));
 	printf("Using Device %d: %s\n", dev, deviceProp.name);
 	CHECK(cudaSetDevice(dev));
+	//end setup device
 
+	//Warmup
 	int n = width * height;
-	cout << n << endl;
-
+	cout << "Warmup ..." << endl;
 	unsigned char* grayscale = rgb_to_grayscale(data, n, channels_in_file, !host_compare);
-
-	stbi_write_png("image_gray.png", width, height, 1, grayscale, 0);
+	stbi_write_png("./data/warmup.png", width, height, 1, grayscale, 0);
+	//end warmup
 
 	/**
 	///////////////////////////////////////////////////////////////////////////
@@ -145,20 +146,17 @@ int main(int argc, char **argv)
 	**/
 
 	//Begin
-	/// Image loading
-	int w1;
-	int h1;
-	int ch1;
-
-	int w2;
-	int h2;
-	int ch2;
+	// Image loading
+	int w1,h1,ch1;
+	int w2,h2,ch2;
 	unsigned char *data1 = stbi_load("./data/tsukuba0.png", &w1, &h1, &ch1, 0);
 	unsigned char *data2 = stbi_load("./data/tsukuba1.png", &w2, &h2, &ch2, 0);
 	int n1 = w1 * h1;
 	int n2 = w2 * h2;
+
 	cout << "Resolution : " << w1 << "x" << h1 << endl;
 	//rgb to grayscale
+	cout << "RGB to grayscale ..." << endl;
 	unsigned char* I_l = rgb_to_grayscale(data1, n1, ch1, host_compare);
 	unsigned char* I_r = rgb_to_grayscale(data2, n2, ch2, host_compare);
 	//end rgb to grayscale
@@ -168,21 +166,28 @@ int main(int argc, char **argv)
 	int size_d = D_MAX - D_MIN + 1;
 	float* cost = (float*)malloc(sizeof(float)*h1*w1*size_d);
 	memset(cost, 0, sizeof(float)*h1*w1*(D_MAX - D_MIN + 1));
+	cout << "Cost Volume ..." << endl;
 	compute_cost(I_l, I_r, cost, w1, w2, h1, h2, host_compare);
 	//end cost volume
 
 	//guided Filter
 	unsigned char* mean1 = (unsigned char*)malloc(n1);
 	unsigned char* mean2 = (unsigned char*)malloc(n2);
-	compute_guided_filter(I_l, I_r, cost, mean1, mean2, w1, h1, w2, h2, size_d, host_compare);
+	float* filtered = (float*)malloc(size_d*n1 * sizeof(float));
+	cout << "guided filter ..." << endl;
+	compute_guided_filter(I_l, I_r, cost, filtered, mean1, mean2, w1, h1, w2, h2, size_d, host_compare);
 	//end guided Filter
 
-
+	//write images
+	cout << "writing images ..." << endl;
 	stbi_write_png("./data/image_left.png", w1, h1, 1, I_l, 0);
 	stbi_write_png("./data/image_right.png", w2, h2, 1, I_r, 0);
-	stbi_write_png("./data/image_mean.png", w1, h1, 1, mean1, 0);
+	stbi_write_png("./data/image_mean_left.png", w1, h1, 1, mean1, 0);
+	stbi_write_png("./data/image_mean_right.png", w2, h2, 1, mean2, 0);
+	//end writing images
 
-
+	//free the memory
+	cout << "Free the memory ..." << endl;
 	free(grayscale);
 	stbi_image_free(data);
 	free(I_l);
@@ -192,6 +197,7 @@ int main(int argc, char **argv)
 	free(mean1);
 	free(mean2);
 	free(cost);
+	free(filtered);
 
 	return 0;
 }

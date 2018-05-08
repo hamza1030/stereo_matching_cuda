@@ -1,11 +1,10 @@
 #pragma once
 
 #include "SystemIncludes.h"
-
+#include "helpers.cuh"
 
 
 void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int w2, int h1, int h2, bool host_gpu_compare);
-bool check_errors_cost(float* resCPU, float* resGPU, int len);
 void costVolumeOnCPU(unsigned char* i1, unsigned char* i2, float* cost, int w1, int w2, int h1, int h2, int size_d);
 __host__ float x_derivativeCPU(unsigned char* im, int col_index, int index, int width);
 __host__ int iDivUp(int a, int b);

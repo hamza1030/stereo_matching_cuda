@@ -1,5 +1,6 @@
 #include "SystemIncludes.h"
-
+#define B_H (TILE_HEIGHT +2*RADIUS)
+#define B_W (TILE_WIDTH +2*RADIUS)
 
 
 __global__ void boxFilterOnGpu(unsigned char* image, unsigned char* mean, int width, int height);
