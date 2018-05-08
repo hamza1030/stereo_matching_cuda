@@ -1,11 +1,12 @@
 #include "guidedFilter.cuh"
 
+
 void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsigned char* mean,const int w, const int h, const int size_d, bool host_gpu_compare) {
 	int n = w * h;
 	int volume = size_d * w*h;
 	int n_fl = sizeof(float)*n;
 	int radius = 1 * RADIUS;
- 	//1st step : compute mean filter and its covariance
+	//1st step : compute mean filter and its covariance
 	// GPU var
 	unsigned char* d_i;
 	unsigned char* d_mean;
@@ -14,6 +15,7 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 	float* d_var_im;
 
 	//CPU var
+
 	float* h_im = (float*) malloc(n_fl);
 	float* h_mean_im = (float*) malloc (n_fl);
 	float* h_var_im = (float*)malloc(n_fl);
@@ -43,6 +45,7 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 
 
 	dim3 blockDim(128);
+
 	dim3 gridDim ((n + blockDim.x - 1) / blockDim.x);
 	//im unsigned char -> float
 	chToFlOnGPU << <gridDim, blockDim >> > (d_i, d_im, n);
@@ -55,12 +58,32 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 	float* integral_im = (float*)malloc(n_fl);
 	memset(integral_im, 0.0f, n_fl);
 	integral(h_im, integral_im, w, h);
+
+	
+
+	float* integral_imCPU = (float*)malloc(n_fl);
+	memset(integral_imCPU, 0.0f, n_fl);
+	integralOnCPU(h_im, integral_imCPU, w, h);
+
+	//check_errors(integral_im1, integral_im1CPU, w1 * h1);
+	for (int i = 0; i < w; i++) {
+		for (int j = 0; j < h; j++)
+		{
+			if (integral_imCPU[i + w * j] != integral_im[j + h * i]) {
+				//res = false;
+				//cout << "error at element: " << i << " ResultGPU = " << integral_im[i +j*w] << " and ResultCPU= " << integral_imCPU[i + w * j] << endl;
+			}
+		}
+	}
+
+
 	/**
 	cout << "im(0,0) = " << h_im1[0] << " int(0,0) = " << integral_im1[0] << endl;
 	cout << "im(0,1) = " << h_im1[1] << " int(0,1) = " << integral_im1[1] << endl;
 	cout << "im(0,2) = " << h_im1[2] << " int(0,2) = " << integral_im1[2] << endl;
 	cout << "im(0,3) = " << h_im1[3] << " int(0,3) = " << integral_im1[3] << endl;
 	**/
+
 	float* d_integral_im;
 	CHECK(cudaMalloc((void**)&d_integral_im, n_fl));
 	CHECK(cudaMemcpy(d_integral_im, integral_im, n_fl, cudaMemcpyHostToDevice));
@@ -90,7 +113,7 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 	CHECK(cudaMemcpy(d_temp, integral_square, n_fl, cudaMemcpyHostToDevice));
 	dim3 mult(1024);
 	dim3 gmult((n + mult.x - 1) / mult.x);
-	pixelMultOnGPU << < gmult, mult >> > (d_im, d_im, d_imSquare1, n1);
+	pixelMultOnGPU << < gmult, mult >> > (d_im, d_im, d_imSquare, n);
 	pixelMultOnGPU << < gmult, mult >> > (d_mean_im, d_mean_im, d_meanSquare, n);
 	CHECK(cudaMemcpy(imSquare, d_imSquare, n_fl, cudaMemcpyDeviceToHost));
 	integral(imSquare, integral_square, w, h);
@@ -105,11 +128,10 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 	CHECK(cudaMalloc((void**)&d_ak, n_fl));
 	CHECK(cudaMalloc((void**)&d_pk, n_fl*size_d));
 	CHECK(cudaMalloc((void**)&d_bk, n_fl));
-	for (int i = 0; i < size[d], i++) {
-
-	}
+	
 
 	//compute ai, bi and finally qi
+
 
 
 
@@ -130,8 +152,10 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 	CHECK(cudaGetLastError());
 
 
+
 	CHECK(cudaMemcpy(mean, d_mean, n, cudaMemcpyDeviceToHost));
 	CHECK(cudaMemcpy(h_var_im, d_var_im, n_fl, cudaMemcpyDeviceToHost));
+
 	//free cuda memory
 	CHECK(cudaFree(d_i));
 	CHECK(cudaFree(d_mean));
@@ -143,7 +167,6 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 	CHECK(cudaFree(d_imSquare));
 	CHECK(cudaFree(d_temp));
 	CHECK(cudaFree(d_meanSquare));
-
 
 	//free ram memory
 	free(h_im);
@@ -159,67 +182,52 @@ __host__ void chToFlOnCPU(unsigned char* image, float* result, int len) {
 	for (int i = 0; i < len; i++) {
 		unsigned int c = image[i];
 		result[i] = 1.0f*c;
-
 	}
-
 }
 
 __host__ void flToChOnCPU(float* image, unsigned char* result, int len) {
-	for  (int i = 0; i< len; i++)
+	for (int i = 0; i < len; i++)
 	{
 		unsigned int c = image[i];
 		result[i] = (unsigned char)c;
 	}
-
 }
 
 __host__ void pixelMultOnCPU(float* image1, float* image2, float* result, int len) {
-	for (int i = 0; i< len; i++)
+	for (int i = 0; i < len; i++)
 	{
 		result[i] = image1[i] * image2[i];
 	}
-
 }
 
 __host__ void pixelSousOnCPU(float* image1, float* image2, float* result, int len) {
-	for (int i = 0; i< len; i++)
+	for (int i = 0; i < len; i++)
 	{
 		result[i] = image1[i] - image2[i];
 	}
-
 }
 
 __host__ void pixelAddOnCPU(float* image1, float* image2, float* result, int len) {
-	for (int i = 0; i< len; i++)
+	for (int i = 0; i < len; i++)
 	{
 		result[i] = image1[i] + image2[i];
 	}
-
 }
 
 __host__ void pixelDivOnCPU(float* image1, float* image2, float* result, int len) {
-
-	for (int i = 0; i< len; i++)
+	for (int i = 0; i < len; i++)
 	{
 		float c = image2[i];
 		if (c != 0) result[i] = image1[i] / c;
 	}
-
 }
-
-
-
-
-
-
 
 __global__ void computeBoxFilter(float* image, float* integral, float* mean, const int w, const int h) {
 	int idx = blockIdx.x*blockDim.x + threadIdx.x;
 	int idy = blockIdx.y*blockDim.y + threadIdx.y;
-	if (idx < w && idy<h) {
+	if (idx < w && idy < h) {
 		mean[idx + w * idy] = computeMean(image, integral, idx, idy, w, h);
 	}
-
 }
 __device__ float computeMean(float* I, float* S, int idx, int idy, const int w, const int h) {
 	int i_x = max(idx - RADIUS, 0);
@@ -227,13 +235,12 @@ __device__ float computeMean(float* I, float* S, int idx, int idy, const int w, 
 	int j_x = min((idx + RADIUS), w-1);
 	int j_y = min((idy + RADIUS), h-1);
 	float S_1 = S[j_y*w + j_x];
-	float S_2 = (i_x<1) ? 0 : S[j_y*w + (i_x - 1)];
-	float S_3 = (i_y<1) ? 0 : S[(i_y - 1)*w + j_x];
+	float S_2 = (i_x < 1) ? 0 : S[j_y*w + (i_x - 1)];
+	float S_3 = (i_y < 1) ? 0 : S[(i_y - 1)*w + j_x];
 	float S_4 = ((i_x < 1) || (i_y < 1)) ? 0 : S[(i_y - 1)*w + (i_x - 1)];
 	float area = abs(j_y - i_y)*abs(j_x - i_x);
 	return (S_1 + S_4 - S_3 - S_2) / area;
 }
-
 
 /**
 
@@ -334,19 +341,17 @@ __global__ void chToFlOnGPU(unsigned char* image, float* result, int len) {
 	if (i < len)
 	{
 		unsigned int c = image[i];
-		result[i] = 1.0f*c/255;
+		result[i] = 1.0f*c / 255;
 	}
-
 }
 
 __global__ void flToChOnGPU(float* image, unsigned char* result, int len) {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i < len)
 	{
-		int c = image[i]*255.0;
-		result[i] = (c>255)?255: (unsigned char) c;
+		int c = image[i] * 255.0;
+		result[i] = (c > 255) ? 255 : (unsigned char)c;
 	}
-
 }
 
 __global__ void pixelMultOnGPU(float* image1, float* image2, float* result, int len) {
@@ -355,7 +360,6 @@ __global__ void pixelMultOnGPU(float* image1, float* image2, float* result, int 
 	{
 		result[i] = image1[i] * image2[i];
 	}
-
 }
 
 __global__ void pixelSousOnGPU(float* image1, float* image2, float* result, int len) {
@@ -364,7 +368,6 @@ __global__ void pixelSousOnGPU(float* image1, float* image2, float* result, int 
 	{
 		result[i] = image1[i] - image2[i];
 	}
-
 }
 
 __global__ void pixelAddOnGPU(float* image1, float* image2, float* result, int len) {
@@ -373,7 +376,6 @@ __global__ void pixelAddOnGPU(float* image1, float* image2, float* result, int l
 	{
 		result[i] = image1[i] + image2[i];
 	}
-
 }
 
 __global__ void pixelDivOnGPU(float* image1, float* image2, float* result, int len) {
@@ -381,7 +383,6 @@ __global__ void pixelDivOnGPU(float* image1, float* image2, float* result, int l
 	if (i < len)
 	{
 		float c = image2[i];
-		if (c != 0) result[i] = image1[i] /c;
+		if (c != 0) result[i] = image1[i] / c;
 	}
-
 }

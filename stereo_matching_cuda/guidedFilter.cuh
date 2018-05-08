@@ -1,6 +1,13 @@
+#pragma once
+
 #include "SystemIncludes.h"
 #include "integral.cuh"
+#include "helpers.cuh"
+
 void compute_guided_filter(unsigned char* i, float* cost, float* filtered, unsigned char* mean, const int w, const int h, const int size_d, bool host_gpu_compare);
+
+
+
 
 
 __host__ void chToFlOnCPU(unsigned char* image, float* result, int len);

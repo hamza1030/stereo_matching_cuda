@@ -13,6 +13,9 @@
 #define TH_grad 2
 #define TH_color 7
 
+#define SIZE_1D 100
+#define B_SIZE 16
+
 #define TILE_HEIGHT 12
 #define TILE_WIDTH 12
 #define RADIUS 9

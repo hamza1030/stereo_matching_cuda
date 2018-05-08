@@ -11,8 +11,6 @@ void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int
 	memset(cost, 0, sizeof(float)*(size_cost));
 	memset(h_cost, 0, sizeof(float)*(size_cost));
 
-
-
 	CHECK(cudaMalloc((unsigned char**)&d_i1, w1 * h1));
 	CHECK(cudaMalloc((unsigned char**)&d_i2, w2 * h2));
 	CHECK(cudaMalloc((void**)&d_cost, size_cost * sizeof(float)));
@@ -36,7 +34,7 @@ void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int
 	//host side
 	if (host_gpu_compare) {
 		costVolumeOnCPU(i1, i2, h_cost, w1, w2, h1, h2, size_d);
-		bool verif = check_errors_cost(h_cost, cost, size_cost);
+		bool verif = check_errors(h_cost, cost, size_cost);
 		if (verif) cout << "Cost Volume ok!" << endl;
 	}
 
@@ -47,17 +45,7 @@ void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int
 	free(h_cost);
 }
 
-bool check_errors_cost(float* resCPU, float* resGPU, int len) {
-	bool res = true;
-	for (int i = 0; i < len; i++) {
-		//cout << i << " ResultGPU = " << resGPU[i] << " and ResultCPU= " << resCPU[i] << endl;
-		if (resCPU[i] != resGPU[i]) {
-			res = false;
-			cout << "error at element: " << i << " ResultGPU = " << resGPU[i] << " and ResultCPU= " << resCPU[i] << endl;
-		}
-	}
-	return res;
-}
+
 
 void costVolumeOnCPU(unsigned char* i1, unsigned char* i2, float* cost, int w1, int w2, int h1, int h2, int size_d) {
 	float alpha = 1.0f*ALPHA;
@@ -67,9 +55,9 @@ void costVolumeOnCPU(unsigned char* i1, unsigned char* i2, float* cost, int w1, 
 		for (int y = 0; y < h1; y++) {
 			for (int x = 0; x < w1; x++) {
 				int index = y * w1 + x;
-				int id = d *w1*h1 + index;
+				int id = d * w1*h1 + index;
 				float c = (1.0f - alpha) * th_color + alpha * (1.0f*th_grad);
-				if ((x + d < w2) && (x +d >= 0)) {
+				if ((x + d < w2) && (x + d >= 0)) {
 					float diff_term = 1.0f*abs(i1[index] - i2[index + d]);
 					float grad_1 = 1.0f*x_derivativeCPU(i1, x, index, w1);
 					float grad_2 = 1.0f*x_derivativeCPU(i2, x + d, index + d, w2);
@@ -78,25 +66,31 @@ void costVolumeOnCPU(unsigned char* i1, unsigned char* i2, float* cost, int w1, 
 				}
 				cost[id] = c;
 			}
-
 		}
-
 	}
 }
 
-
-
 __global__ void costVolumOnGPU2(unsigned char* i1, unsigned char* i2, float* cost, int w1, int w2, int h1, int h2, int size_d) {
+	// x threads for pixels [0, w*h]
 	int x = blockDim.x*blockIdx.x + threadIdx.x;
+	// y threads for d [0, size_d]
 	int y = blockDim.y*blockIdx.y + threadIdx.y;
+
 	float alpha = 1.0f*ALPHA;
 	float th_color = 1.0f*TH_color;
 	float th_grad = 1.0f*TH_grad;
+
+	// row index in the image
 	int idx = x % w1;
+	// col index in the image
 	int idy = x / w1;
-	int id = y*w1*h1 + x;
-	int d = -D_MIN + y; //-D_MIN + y;
+	// index [0, w*h*size_d]
+	int id = y * w1*h1 + x;
+	// d candidate [dmin, dmax]
+	int d = -D_MIN + y;
+
 	if (y < size_d && x < w1*h1) {
+		// threshold
 		float c = (1 - alpha) * th_color + alpha * th_grad;
 		if (((idx + d) < w2) && ((idx + d) >= 0)) 
 		{
@@ -104,7 +98,71 @@ __global__ void costVolumOnGPU2(unsigned char* i1, unsigned char* i2, float* cos
 		}
 		cost[id] = c;
 		//printf("%f\n", c);
+
+		//float* q;
+		//// TODO filter
+		//q[id] = 0;
+
+		//__syncthreads();
+
+		//// disparity selection - blockDim should be SIZE_1D !!!
+
+		//// fill with 0
+		//__shared__ float bestDisparity[SIZE_1D];
+		//// fill with 100000
+		//__shared__ float bestCost[SIZE_1D];
+
+		//bestDisparity[threadIdx.x] = 0;
+		//bestCost[threadIdx.x] = 0;
+
+		//__syncthreads();
+
+		//if (q[id] < bestCost[threadIdx.x])
+		//{
+		//	bestCost[threadIdx.x] = q[id];
+		//	bestDisparity[threadIdx.x] = d;
+		//}
+
+		//__syncthreads();
+
+		//// output to add in param - size w*h - fill with 0
+		//float* disparityMap;
+		//disparityMap[x] = bestDisparity[threadIdx.x];
 	}
+
+	//extern __shared__ float temp[];
+	//// for shared memory
+	//int tdx = threadIdx.x;
+	//// to cumSum one row - for w = 1080, we need 540 threads
+	//int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	//// for each row
+	//int idy = blockIdx.y * blockDim.y + threadIdx.y;
+
+	//int idxEven = idx * 2 + idy * w;
+	//int idxOdd = idx * 2 + 1 + idy * w;
+
+	//int offset = 1;
+
+	//temp[2 * tdx] = input[idxEven];
+	//temp[2 * tdx + 1] = input[idxOdd];
+
+	//for (int nSum = B_SIZE / 2; nSum > 0; nSum /= 2)
+	//{ 
+	//	__syncthreads();
+	//	if (tdx < nSum)
+	//	{
+	//		int a = offset * (2 * tdx + 1) - 1;
+	//		int b = offset * (2 * tdx + 2) - 1;
+	//		temp[b] += temp[a];
+	//	}
+	//	offset *= 2;
+	//}
+
+	//__syncthreads();
+
+	////Write output (size h)
+	//output[2 * tdx] = temp[2 * tdx];
+	//output[2 * tdx + 1] = temp[2 * tdx + 1];
 }
 
 __device__ int id_im(int i, int j, int width) {
@@ -116,15 +174,15 @@ __device__ int id_cost(int i, int j, int width, int height, int k) {
 __device__ float x_derivative(unsigned char* im, int col_index, int index, int width) {
 	if ((col_index + 1) < width && (col_index - 1) >= 0)
 	{
-		return (float) ((im[index + 1] - im[index - 1]) / 2);
+		return (float)((im[index + 1] - im[index - 1]) / 2);
 	}
 	else if (col_index + 1 == width)
 	{
-		return (float) ((im[index] - im[index - 1]) / 2);
+		return (float)((im[index] - im[index - 1]) / 2);
 	}
 	else
 	{
-		return (float) ((im[index + 1] - im[index]) / 2);
+		return (float)((im[index + 1] - im[index]) / 2);
 	}
 }
 
