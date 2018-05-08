@@ -38,7 +38,6 @@ void detect_occlusion(float* disparityLeft, float* disparityRight, const float d
 
 	CHECK(cudaFree(d_disparityLeft));
 	CHECK(cudaFree(d_disparityRight));
-
 }
 
 /// Detect left-right discrepancies in disparity and put incoherent pixels to
@@ -55,4 +54,44 @@ void detect_occlusionOnCPU(float* disparityLeft, float* disparityRight, const fl
 				disparityLeft[x + w * y] = dOcclusion;
 		}
 	}
+}
+
+// Filling
+
+/// Fill pixels below value \a vMin using values at two closest pixels on same
+/// line above \a vMin. The filling value is the result of \a cmp with the two
+/// values as parameters.
+void fillXOnCPU(float* disparity, const int w, const int h, const float vMin, const bool isMin) {
+	for (int y = 0; y < h; y++) {
+		int x0 = -1;
+		float v0 = vMin;
+		while (x0 < w) {
+			// neighbour index
+			int x1 = x0 + 1;
+			// ignore in-range occluded pixels
+			while (x1 < w && disparity[x1 + w * y] < vMin) ++x1;
+
+
+			float v = v0;
+			if (x1 < w)
+			{
+				v0 = disparity[x1 + w * y];
+				v = isMin ? min(v, v0) : max(v, v0);
+			}
+			std::fill(&disparity[x0 + 1 + w * y], &disparity[x1 + w * y], v);
+			x0 = x1;
+		}
+	}
+}
+
+/// Fill pixels below value \a vMin with min of values at closest pixels on same
+/// line above \a vMin.
+void fillMinXOnCPU(float* disparity, const int w, const int h, float vMin) {
+	fillXOnCPU(disparity, w, h, vMin, true);
+}
+
+/// Fill pixels below value \a vMin with max of values at closest pixels on same
+/// line above \a vMin.
+void fillMaxXOnCPU(float* disparity, const int w, const int h, float vMin) {
+	fillXOnCPU(disparity, w, h, vMin, false);
 }
