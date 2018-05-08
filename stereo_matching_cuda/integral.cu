@@ -18,11 +18,11 @@ void integral(float* image, float* integral, int width, int height) {
 	dim3 threadsperblock(1024);
 	dim3 blocknumbersRow((h + threadsperblock.x - 1) / threadsperblock.x);
 	dim3 blocknumbersCol((w + threadsperblock.x - 1) / threadsperblock.x);
-	dim3 threadsT(16, 16, 1);
-	dim3 blocksT(w / 16 + (w % 16 > 0 ? 1 : 0), h / 16 + (h % 16 > 0 ? 1 : 0), 1);
+	dim3 threadsT(B_SIZE, B_SIZE, 1);
+	dim3 blocksT(w / B_SIZE + (w % B_SIZE > 0 ? 1 : 0), h / B_SIZE + (h % B_SIZE > 0 ? 1 : 0), 1);
 	rowSum << <blocknumbersRow, threadsperblock >> > (d_image, d_integral, w, h);
 	transpose << <blocksT, threadsT >> > (d_integral, d_integralT, w, h);
-	rowSum << <blocknumbersRow, threadsperblock >> > (d_integralT, d_integral, w, h);
+	rowSum << <blocknumbersRow, threadsperblock >> > (d_integralT, d_integral, h, w);
 
 	//rowSum << <blocknumbersRow, threadsperblock >> > (d_image, d_integralT, w, h);
 	//colSum << <blocknumbersCol, threadsperblock >> > (d_integralT, d_integral, w, h);
