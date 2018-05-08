@@ -64,17 +64,7 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 	float* integral_imCPU = (float*)malloc(n_fl);
 	memset(integral_imCPU, 0.0f, n_fl);
 	integralOnCPU(h_im, integral_imCPU, w, h);
-
-	//check_errors(integral_im1, integral_im1CPU, w1 * h1);
-	for (int i = 0; i < w; i++) {
-		for (int j = 0; j < h; j++)
-		{
-			if (integral_imCPU[i + w * j] != integral_im[j + h * i]) {
-				//res = false;
-				//cout << "error at element: " << i << " ResultGPU = " << integral_im[i +j*w] << " and ResultCPU= " << integral_imCPU[i + w * j] << endl;
-			}
-		}
-	}
+	check_errors(integral_im, integral_imCPU, w1 * h1);
 
 
 	/**
