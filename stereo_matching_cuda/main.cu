@@ -175,7 +175,8 @@ int main(int argc, char **argv)
 	unsigned char* mean2 = (unsigned char*)malloc(n2);
 	float* filtered = (float*)malloc(size_d*n1 * sizeof(float));
 	cout << "guided filter ..." << endl;
-	compute_guided_filter(I_l, I_r, cost, filtered, mean1, mean2, w1, h1, w2, h2, size_d, host_compare);
+	compute_guided_filter(I_l, cost, filtered, mean1, (const int)w1, (const int)h1, (const int)size_d, host_compare);
+	compute_guided_filter(I_r, cost, filtered, mean2, (const int)w2, (const int)h2, (const int)size_d, host_compare);
 	//end guided Filter
 
 	//write images

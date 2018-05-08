@@ -4,25 +4,34 @@ void integral(float* image, float* integral, int width, int height) {
 	float* d_image;
 	float* d_integral;
 	float* d_integralT;
+	float* d_integralT2;
+	float* d_integralT3;
 	const int w = width;
 	const int h = height;
 	memset(integral, 0, w*h * sizeof(float));
 	CHECK(cudaMalloc((void**)&d_image, w*h * sizeof(float)));
 	CHECK(cudaMalloc((void**)&d_integral, w*h * sizeof(float)));
 	CHECK(cudaMalloc((void**)&d_integralT, w*h * sizeof(float)));
+	CHECK(cudaMalloc((void**)&d_integralT2, w*h * sizeof(float)));
+	CHECK(cudaMalloc((void**)&d_integralT3, w*h * sizeof(float)));
 
 	CHECK(cudaMemcpy(d_image, image, w*h * sizeof(float), cudaMemcpyHostToDevice));
 	CHECK(cudaMemcpy(d_integral, integral, w*h * sizeof(float), cudaMemcpyHostToDevice));
 	CHECK(cudaMemcpy(d_integralT, integral, w*h * sizeof(float), cudaMemcpyHostToDevice));
+	CHECK(cudaMemcpy(d_integralT2, integral, w*h * sizeof(float), cudaMemcpyHostToDevice));
+	CHECK(cudaMemcpy(d_integralT3, integral, w*h * sizeof(float), cudaMemcpyHostToDevice));
+
 
 	dim3 threadsperblock(1024);
-	dim3 blocknumbersRow((h + threadsperblock.x - 1) / threadsperblock.x);
-	dim3 blocknumbersCol((w + threadsperblock.x - 1) / threadsperblock.x);
+	dim3 blocknumbersRow((w + threadsperblock.x - 1) / threadsperblock.x);
+	dim3 blocknumbersCol((h + threadsperblock.x - 1) / threadsperblock.x);
 	dim3 threadsT(B_SIZE, B_SIZE, 1);
 	dim3 blocksT(w / B_SIZE + (w % B_SIZE > 0 ? 1 : 0), h / B_SIZE + (h % B_SIZE > 0 ? 1 : 0), 1);
-	rowSum << <blocknumbersRow, threadsperblock >> > (d_image, d_integral, w, h);
-	transpose << <blocksT, threadsT >> > (d_integral, d_integralT, w, h);
-	rowSum << <blocknumbersRow, threadsperblock >> > (d_integralT, d_integral, h, w);
+	rowSum << <blocknumbersRow, threadsperblock >> > (d_image, d_integralT, w, h);
+	transpose << <blocksT, threadsT >> > (d_integralT, d_integralT2, w, h);
+	rowSum << <blocknumbersCol, threadsperblock >> > (d_integralT2, d_integralT3, h, w);
+	dim3 threadsT2(B_SIZE, B_SIZE, 1);
+	transpose << <blocksT, threadsT2 >> > (d_integralT3, d_integral, h, w);
 
 	//rowSum << <blocknumbersRow, threadsperblock >> > (d_image, d_integralT, w, h);
 	//colSum << <blocknumbersCol, threadsperblock >> > (d_integralT, d_integral, w, h);
@@ -70,6 +79,7 @@ __global__ void rowSum(float * in, float * out, const int w, const int h)
 		out[idy*w + idx] = in[idy*w + idx] + out[idy*w + idx - 1];
 
 		__syncthreads();
+
 	}
 }
 
@@ -102,13 +112,14 @@ void integralOnCPU(float * in, float * out, const int w, const int h)
 	free(temp);
 }
 
-__global__ void colSum(float * image, float * integral, const int w, const int h) {
+__global__ void colSum(float * in, float * out, const int w, const int h) {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx >= w) return;
-	integral[idx] = image[idx];
+	out[idx] = in[idx];
 	for (int idy = 1; idy < h; idy++)
 	{
-		integral[idy*w + idx] = image[idy*w + idx] + integral[(idy - 1)*w + idx];
+		out[idy*w + idx] = in[idy*w + idx] + out[(idy - 1)*w + idx];
 		__syncthreads();
+
 	}
 }
