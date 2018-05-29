@@ -1,7 +1,7 @@
 #include "costVolume.cuh"
 __host__ int iDivUp(int a, int b) { return (a % b != 0) ? (a / b + 1) : (a / b); }
 
-void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int w2, int h1, int h2, bool host_gpu_compare) {
+void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int w2, int h1, int h2, int dmin, bool host_gpu_compare) {
 	int size_d = D_MAX - D_MIN + 1;
 	int size_cost = h1 * w1*size_d;
 	unsigned char* d_i1;
@@ -23,7 +23,7 @@ void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int
 	gridDim.x = iDivUp(w1*h1, blockDim.x);
 	gridDim.y = 1;//size_d;
 
-	costVolumOnGPU2 << <gridDim, blockDim >> > (d_i1, d_i2, d_cost, w1, w2, h1, h2, size_d);
+	costVolumOnGPU2 << <gridDim, blockDim >> > (d_i1, d_i2, d_cost, w1, w2, h1, h2, size_d, dmin);
 	CHECK(cudaDeviceSynchronize());
 
 	// check kernel error
@@ -33,7 +33,7 @@ void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int
 
 	//host side
 	if (host_gpu_compare) {
-		costVolumeOnCPU(i1, i2, h_cost, w1, w2, h1, h2, size_d);
+		costVolumeOnCPU(i1, i2, h_cost, w1, w2, h1, h2, size_d, dmin);
 		bool verif = check_errors(h_cost, cost, size_cost);
 		if (verif) cout << "Cost Volume ok!" << endl;
 	}
@@ -86,7 +86,7 @@ __global__ void selectionOnGpu(float* filt_cost, float* best_cost, float* dmap, 
 	int offset = n;
 	if (i < n) {
 		for (int j = 0; j < dsize; j++) {
-			if (best_cost[i] > filt_cost[i + j * n]) {
+			if (best_cost[i] >= filt_cost[i + j * n]) {
 				best_cost[i] = filt_cost[i + j * n];
 				dmap[i] = D_MIN + j;
 			}
@@ -97,16 +97,17 @@ __global__ void selectionOnGpu(float* filt_cost, float* best_cost, float* dmap, 
 
 
 
-void costVolumeOnCPU(unsigned char* i1, unsigned char* i2, float* cost, int w1, int w2, int h1, int h2, int size_d) {
+void costVolumeOnCPU(unsigned char* i1, unsigned char* i2, float* cost, int w1, int w2, int h1, int h2, int size_d, int dmin) {
 	float alpha = 1.0f*ALPHA;
 	float th_color = 1.0f*TH_color;
 	float th_grad = 1.0f*TH_grad;
-	for (int d = -D_MIN; d <= D_MAX; d++) {
+	for (int z = 0; z < size_d; z++) {
 		for (int y = 0; y < h1; y++) {
 			for (int x = 0; x < w1; x++) {
 				int index = y * w1 + x;
-				int id = d * w1*h1 + index;
+				int id = z * w1*h1 + index;
 				float c = (1.0f - alpha) * th_color + alpha * (1.0f*th_grad);
+				int d = dmin + z;
 				if ((x + d < w2) && (x + d >= 0)) {
 					float diff_term = 1.0f*abs(i1[index] - i2[index + d]);
 					float grad_1 = 1.0f*x_derivativeCPU(i1, x, index, w1);
@@ -120,7 +121,7 @@ void costVolumeOnCPU(unsigned char* i1, unsigned char* i2, float* cost, int w1, 
 	}
 }
 
-__global__ void costVolumOnGPU2(unsigned char* i1, unsigned char* i2, float* cost, int w1, int w2, int h1, int h2, int size_d) {
+__global__ void costVolumOnGPU2(unsigned char* i1, unsigned char* i2, float* cost, int w1, int w2, int h1, int h2, int size_d, int dmin) {
 	// x threads for pixels [0, w*h]
 	int x = blockDim.x*blockIdx.x + threadIdx.x;
 	// y threads for d [0, size_d]
@@ -137,7 +138,7 @@ __global__ void costVolumOnGPU2(unsigned char* i1, unsigned char* i2, float* cos
 	// index [0, w*h*size_d]
 	int id = y * w1*h1 + x;
 	// d candidate [dmin, dmax]
-	int d = -D_MIN + y;
+	int d = dmin + y;
 
 	if (y < size_d && x < w1*h1) {
 		// threshold

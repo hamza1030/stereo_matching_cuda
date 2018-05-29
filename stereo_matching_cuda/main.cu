@@ -170,8 +170,10 @@ int main(int argc, char **argv)
 	memset(costl, 0, sizeof(float)*h1*w1*(D_MAX - D_MIN + 1));
 	memset(costr, 0, sizeof(float)*h1*w1*(D_MAX - D_MIN + 1));
 	cout << "Cost Volume ..." << endl;
-	compute_cost(I_l, I_r, costl, w1, w2, h1, h2, host_compare);
-	compute_cost(I_r, I_l, costr, w2, w1, h2, h1, host_compare);
+	int dmin = D_MIN;
+	compute_cost(I_l, I_r, costl, w1, w2, h1, h2, dmin,host_compare);
+	dmin = -D_MAX;
+	compute_cost(I_r, I_l, costr, w2, w1, h2, h1, dmin,host_compare);
 	//end cost volume
 
 	//guided Filter
@@ -182,7 +184,7 @@ int main(int argc, char **argv)
 	float* filtered_costr = (float*)malloc(size_d*n1 * sizeof(float));
 	cout << "guided filter ..." << endl;
 	compute_guided_filter(I_l, costl, filtered_costl, mean1, (const int)w1, (const int)h1, (const int)size_d, host_compare);
-	compute_guided_filter(I_l, costr, filtered_costr, mean2, (const int)w2, (const int)h2, (const int)size_d, host_compare);
+	compute_guided_filter(I_r, costr, filtered_costr, mean2, (const int)w2, (const int)h2, (const int)size_d, host_compare);
 	//compute_guided_filter(grayscale, cost, filtered, mean, (const int)width, (const int)height, (const int)size_d, host_compare);
 	//end guided Filter
 
@@ -201,8 +203,8 @@ int main(int argc, char **argv)
 	memset(dmaplChar, 0, w1*h1);
 	memset(dmaprChar, 0, w1*h1);
 	disparity_selection (filtered_costl, best_costl, dmapl, (const int) w1, (const int) h1, host_compare);
-	disparity_selection(filtered_costr, best_costr, dmapr, (const int)w2, (const int)h2, host_compare);
-	//for (int j = 0; j < size_d*n1; j++) { cout<< filtered_costr[j] <<endl; }
+	disparity_selection (filtered_costr, best_costr, dmapr, (const int)w2, (const int)h2, host_compare);
+	//for (int j = 0; j < n1; j++) { cout<< best_costl[j] <<endl; }
 	const int dOcclusion = 2*size_d;
 	detect_occlusion(dmapl, dmapr, dOcclusion,  dmaplChar, dmaprChar,  w1, h1);
 	//write images

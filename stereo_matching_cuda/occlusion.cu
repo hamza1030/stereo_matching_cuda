@@ -35,9 +35,10 @@ void detect_occlusion(float* disparityLeft, float* disparityRight, const float d
 
 	dim3 nThreadsPerBlock(1024);
 	dim3 nBlocks((n + nThreadsPerBlock.x - 1) / nThreadsPerBlock.x);
+
+	detect_occlusionOnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityLeft, d_disparityRight, dOcclusion, w, h);
 	flToCh2OnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityLeft, d_dmapl, dOcclusion, n);
 	flToCh2OnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityRight, d_dmapr, dOcclusion, n);
-	detect_occlusionOnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityLeft, d_disparityRight, dOcclusion, w, h);
 	
 
 	CHECK(cudaDeviceSynchronize());
