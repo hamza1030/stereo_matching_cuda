@@ -206,7 +206,10 @@ int main(int argc, char **argv)
 	disparity_selection (filtered_costr, best_costr, dmapr, (const int)w2, (const int)h2, host_compare);
 	//for (int j = 0; j < n1; j++) { cout<< best_costl[j] <<endl; }
 	const int dOcclusion = 2*size_d;
-	detect_occlusion(dmapl, dmapr, dOcclusion,  dmaplChar, dmaprChar,  w1, h1);
+	detect_occlusion(dmapl, dmapr, dOcclusion, dmaplChar, dmaprChar,  w1, h1);
+	int vMin = 3;
+	fill_occlusion(dmapl, w1, h1, vMin);
+
 	//write images
 	cout << "writing images ..." << endl;
 	stbi_write_png("./data/image_left.png", w1, h1, 1, I_l, 0);
