@@ -44,6 +44,56 @@ void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int
 	CHECK(cudaFree(d_i2));
 	free(h_cost);
 }
+void disparity_selection(float* filtered_cost, float* best_cost, float* disparity_map, const int w, const int h, bool host_gpu_compare) {
+	const int size_d = D_MAX - D_MIN + 1;
+	const int n = w * h;
+	int n_fl = w * h * sizeof(float);
+	float* d_filtered_cost;
+	float* d_best_cost;
+	float* d_dmap;
+	CHECK(cudaMalloc((void**)&d_best_cost, n_fl));
+	CHECK(cudaMalloc((void**)&d_filtered_cost, size_d*n_fl));
+	CHECK(cudaMalloc((void**)&d_dmap, n_fl));
+	CHECK(cudaMemcpy(d_filtered_cost, filtered_cost, size_d*n_fl, cudaMemcpyHostToDevice));
+	CHECK(cudaMemcpy(d_dmap, disparity_map, n_fl, cudaMemcpyHostToDevice));
+	CHECK(cudaMemcpy(d_best_cost, best_cost, n_fl, cudaMemcpyHostToDevice));
+
+	dim3 blockDim(1024);
+	dim3 gridDim((n +blockDim.x -1)/blockDim.x);
+	//gridDim.x = (w1*h1 + blockDim.x - 1)/blockDim.x;
+
+	selectionOnGpu<< <gridDim, blockDim >> > (d_filtered_cost, d_best_cost, d_dmap, n, size_d);
+
+
+
+	CHECK(cudaDeviceSynchronize());
+
+	// check kernel error
+	CHECK(cudaGetLastError());
+
+	CHECK(cudaMemcpy(best_cost, d_best_cost, n_fl, cudaMemcpyDeviceToHost));
+	CHECK(cudaMemcpy(disparity_map, d_dmap, n_fl, cudaMemcpyDeviceToHost));
+
+
+	// free device global memory
+	CHECK(cudaFree(d_best_cost));
+	CHECK(cudaFree(d_dmap));
+	CHECK(cudaFree(d_filtered_cost));
+}
+
+__global__ void selectionOnGpu(float* filt_cost, float* best_cost, float* dmap, const int n, const int dsize) {
+	int i = blockDim.x*blockIdx.x + threadIdx.x;
+	int offset = n;
+	if (i < n) {
+		for (int j = 0; j < dsize; j++) {
+			if (best_cost[i] > filt_cost[i + j * n]) {
+				best_cost[i] = filt_cost[i + j * n];
+				dmap[i] = D_MIN + j;
+			}
+		}
+	}
+	
+}
 
 
 

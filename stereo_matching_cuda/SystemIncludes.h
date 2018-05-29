@@ -21,7 +21,7 @@
 #define RADIUS 9
 
 #define EPS 6.5025
-
+#define D_LR 0
 
 
 #include "cuda_runtime.h"

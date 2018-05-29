@@ -5,6 +5,7 @@
 #include "costVolume.cuh"
 #include "systemIncludes.h"
 #include "guidedFilter.cuh"
+#include "occlusion.cuh"
 
 // int stbi_write_png(char const *filename, int w, int h, int comp, const void *data, int stride_in_bytes);
 // DOCUMENTATION
@@ -164,23 +165,46 @@ int main(int argc, char **argv)
 	
 	//Cost volume
 	int size_d = D_MAX - D_MIN + 1;
-	float* cost = (float*)malloc(sizeof(float)*h1*w1*size_d);
-	memset(cost, 0, sizeof(float)*h1*w1*(D_MAX - D_MIN + 1));
+	float* costl = (float*)malloc(sizeof(float)*h1*w1*size_d);
+	float* costr = (float*)malloc(sizeof(float)*h2*w2*size_d);
+	memset(costl, 0, sizeof(float)*h1*w1*(D_MAX - D_MIN + 1));
+	memset(costr, 0, sizeof(float)*h1*w1*(D_MAX - D_MIN + 1));
 	cout << "Cost Volume ..." << endl;
-	compute_cost(I_l, I_r, cost, w1, w2, h1, h2, host_compare);
+	compute_cost(I_l, I_r, costl, w1, w2, h1, h2, host_compare);
+	compute_cost(I_r, I_l, costr, w2, w1, h2, h1, host_compare);
 	//end cost volume
 
 	//guided Filter
 	unsigned char* mean1 = (unsigned char*)malloc(n1);
 	unsigned char* mean2 = (unsigned char*)malloc(n2);
 	unsigned char* mean = (unsigned char*)malloc(height*width);
-	float* filtered = (float*)malloc(size_d*n1 * sizeof(float));
+	float* filtered_costl = (float*)malloc(size_d*n1 * sizeof(float));
+	float* filtered_costr = (float*)malloc(size_d*n1 * sizeof(float));
 	cout << "guided filter ..." << endl;
-	//compute_guided_filter(I_l, cost, filtered, mean1, (const int)w1, (const int)h1, (const int)size_d, host_compare);
-	//compute_guided_filter(I_r, cost, filtered, mean2, (const int)w2, (const int)h2, (const int)size_d, host_compare);
-	compute_guided_filter(grayscale, cost, filtered, mean, (const int)width, (const int)height, (const int)size_d, host_compare);
+	compute_guided_filter(I_l, costl, filtered_costl, mean1, (const int)w1, (const int)h1, (const int)size_d, host_compare);
+	compute_guided_filter(I_l, costr, filtered_costr, mean2, (const int)w2, (const int)h2, (const int)size_d, host_compare);
+	//compute_guided_filter(grayscale, cost, filtered, mean, (const int)width, (const int)height, (const int)size_d, host_compare);
 	//end guided Filter
 
+	float* best_costl = (float*)malloc(w1*h1 * sizeof(float));
+	float* best_costr = (float*)malloc(w2*h2 * sizeof(float));
+	memset(best_costl, 10000*1.0f, w1*h1 * sizeof(float));
+	memset(best_costr, 10000*1.0f, w2*h2 * sizeof(float));
+
+
+	float* dmapl = (float*)malloc(w1*h1 * sizeof(float));
+	float* dmapr = (float*)malloc(w2*h2 * sizeof(float));
+	unsigned char* dmaplChar = (unsigned char*)malloc(w1*h1);
+	unsigned char* dmaprChar = (unsigned char*)malloc(w2*h2);
+	memset(dmapl, 0, w1*h1 * sizeof(float));
+	memset(dmapr, 0, w1*h1 * sizeof(float));
+	memset(dmaplChar, 0, w1*h1);
+	memset(dmaprChar, 0, w1*h1);
+	disparity_selection (filtered_costl, best_costl, dmapl, (const int) w1, (const int) h1, host_compare);
+	disparity_selection(filtered_costr, best_costr, dmapr, (const int)w2, (const int)h2, host_compare);
+	//for (int j = 0; j < size_d*n1; j++) { cout<< filtered_costr[j] <<endl; }
+	const int dOcclusion = 2*size_d;
+	detect_occlusion(dmapl, dmapr, dOcclusion,  dmaplChar, dmaprChar,  w1, h1);
 	//write images
 	cout << "writing images ..." << endl;
 	stbi_write_png("./data/image_left.png", w1, h1, 1, I_l, 0);
@@ -188,6 +212,8 @@ int main(int argc, char **argv)
 	stbi_write_png("./data/image_mean_left.png", w1, h1, 1, mean1, 0);
 	stbi_write_png("./data/image_mean_right.png", w2, h2, 1, mean2, 0);
 	stbi_write_png("./data/uhd_mean.png", width, height, 1, mean, 0);
+	stbi_write_png("./data/disparity_map_left.png", w1, h1, 1, dmaplChar, 0);
+	stbi_write_png("./data/disparity_map_right.png", w2, h2, 1, dmaprChar, 0);
 	//end writing images
 
 	//free the memory
@@ -201,8 +227,17 @@ int main(int argc, char **argv)
 	free(mean1);
 	free(mean2);
 	free(mean);
-	free(cost);
-	free(filtered);
+	free(costl);
+	free(costr);
+	free(filtered_costl);
+	free(filtered_costr);
+	free(dmapl);
+	free(dmapr);
+	free(best_costr);
+	free(best_costl);
+	free(dmaprChar);
+	free(dmaplChar);
+
 
 	return 0;
 }

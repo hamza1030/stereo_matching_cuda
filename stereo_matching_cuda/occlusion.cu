@@ -1,6 +1,6 @@
 #include "occlusion.cuh"
 
-__global__ void detect_occlusionOnGPU(float* disparityLeft, float* disparityRight, const float dOcclusion, const int dLR, const int w, const int h)
+__global__ void detect_occlusionOnGPU(float* disparityLeft, float* disparityRight, const float dOcclusion, const int w, const int h)
 {
 	int tdx = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -8,36 +8,49 @@ __global__ void detect_occlusionOnGPU(float* disparityLeft, float* disparityRigh
 
 	int d = (int)disparityLeft[tdx];
 	int dprime = (int)disparityRight[tdx];
-	if ((tdx % w) + d < 0 || (tdx % w) + d >= w || abs(d + dprime) > dLR)
+	if ((tdx % w) + d < 0 || (tdx % w) + d >= w || abs(d + dprime) > D_LR)
 		disparityLeft[tdx] = dOcclusion;
 }
 
-void detect_occlusion(float* disparityLeft, float* disparityRight, const float dOcclusion, const int dLR, const int w, const int h)
+void detect_occlusion(float* disparityLeft, float* disparityRight, const float dOcclusion, unsigned char* dmapl, unsigned char* dmapr, const int w, const int h)
 {
 	float* d_disparityLeft;
 	float* d_disparityRight;
+	unsigned char* d_dmapl;
+	unsigned char* d_dmapr;
 
 	int n = w * h;
 
 	//memset(disparityLeft, 0, n * sizeof(float));
 	CHECK(cudaMalloc((void**)&d_disparityLeft, n * sizeof(float)));
 	CHECK(cudaMalloc((void**)&d_disparityRight, n * sizeof(float)));
+	CHECK(cudaMalloc((void**)&d_dmapl, n ));
+	CHECK(cudaMalloc((void**)&d_dmapr, n));
 
 	CHECK(cudaMemcpy(d_disparityLeft, disparityLeft, n * sizeof(float), cudaMemcpyHostToDevice));
 	CHECK(cudaMemcpy(d_disparityRight, disparityRight, n * sizeof(float), cudaMemcpyHostToDevice));
 
+	CHECK(cudaMemcpy(d_dmapl, dmapl, n , cudaMemcpyHostToDevice));
+	CHECK(cudaMemcpy(d_dmapr, dmapr, n , cudaMemcpyHostToDevice));
+
 	dim3 nThreadsPerBlock(1024);
 	dim3 nBlocks((n + nThreadsPerBlock.x - 1) / nThreadsPerBlock.x);
-
-	detect_occlusionOnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityLeft, d_disparityRight, dOcclusion, dLR, w, h);
+	flToCh2OnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityLeft, d_dmapl, dOcclusion, n);
+	flToCh2OnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityRight, d_dmapr, dOcclusion, n);
+	detect_occlusionOnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityLeft, d_disparityRight, dOcclusion, w, h);
+	
 
 	CHECK(cudaDeviceSynchronize());
 	CHECK(cudaGetLastError());
 
 	CHECK(cudaMemcpy(disparityLeft, d_disparityLeft, n * sizeof(float), cudaMemcpyDeviceToHost));
+	CHECK(cudaMemcpy(dmapl, d_dmapl, n , cudaMemcpyDeviceToHost));
+	CHECK(cudaMemcpy(dmapr, d_dmapr, n, cudaMemcpyDeviceToHost));
 
 	CHECK(cudaFree(d_disparityLeft));
 	CHECK(cudaFree(d_disparityRight));
+	CHECK(cudaFree(d_dmapl));
+	CHECK(cudaFree(d_dmapr));
 }
 
 /// Detect left-right discrepancies in disparity and put incoherent pixels to
@@ -175,5 +188,13 @@ void fill_occlusionOnCPU(float* disparity, const int w, const int h, const float
 
 			disparity[x + w * y] = max(dLeft, dRight);
 		}
+	}
+}
+__global__ void flToCh2OnGPU(float* image, unsigned char* result, int max, int len) {
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i < len)
+	{
+		int c = (image[i] / max) * 255.0;
+		result[i] = (c > 255) ? 255 : (unsigned char)c;
 	}
 }
