@@ -23,18 +23,18 @@ void integral(float* image, float* integral, int width, int height) {
 
 
 	dim3 threadsperblock(1024);
-	dim3 blocknumbersRow((w + threadsperblock.x - 1) / threadsperblock.x);
-	dim3 blocknumbersCol((h + threadsperblock.x - 1) / threadsperblock.x);
+	dim3 blocknumbersRow((h + threadsperblock.x - 1) / threadsperblock.x);
+	dim3 blocknumbersCol((w + threadsperblock.x - 1) / threadsperblock.x);
 	dim3 threadsT(B_SIZE, B_SIZE, 1);
-	dim3 blocksT(w / B_SIZE + (w % B_SIZE > 0 ? 1 : 0), h / B_SIZE + (h % B_SIZE > 0 ? 1 : 0), 1);
-	rowSum << <blocknumbersRow, threadsperblock >> > (d_image, d_integralT, w, h);
-	transpose << <blocksT, threadsT >> > (d_integralT, d_integralT2, w, h);
-	rowSum << <blocknumbersCol, threadsperblock >> > (d_integralT2, d_integralT3, h, w);
-	dim3 threadsT2(B_SIZE, B_SIZE, 1);
-	transpose << <blocksT, threadsT2 >> > (d_integralT3, d_integral, h, w);
-
+	dim3 blocksT((w + B_SIZE -1) / B_SIZE, (h + B_SIZE -1)/ B_SIZE , 1);
+	dim3 blocksT2((h + B_SIZE - 1) / B_SIZE, (w + B_SIZE - 1) / B_SIZE, 1);
 	//rowSum << <blocknumbersRow, threadsperblock >> > (d_image, d_integralT, w, h);
-	//colSum << <blocknumbersCol, threadsperblock >> > (d_integralT, d_integral, w, h);
+	//transpose << <blocksT, threadsT >> > (d_integralT, d_integralT2, w, h);
+	//rowSum << <blocknumbersCol, threadsperblock >> > (d_integralT2, d_integralT3, h, w);
+	//dim3 threadsT2(B_SIZE, B_SIZE, 1);
+	//transpose << <blocksT2, threadsT >> > (d_integralT3, d_integral, h, w);
+	rowSum << <blocknumbersRow, threadsperblock >> > (d_image, d_integralT, w, h);
+	colSum << <blocknumbersCol, threadsperblock >> > (d_integralT, d_integral, w, h);
 
 	CHECK(cudaDeviceSynchronize());
 
@@ -45,6 +45,8 @@ void integral(float* image, float* integral, int width, int height) {
 
 	CHECK(cudaFree(d_integral));
 	CHECK(cudaFree(d_integralT));
+	CHECK(cudaFree(d_integralT2));
+	CHECK(cudaFree(d_integralT3));
 	CHECK(cudaFree(d_image));
 }
 
@@ -122,4 +124,14 @@ __global__ void colSum(float * in, float * out, const int w, const int h) {
 		__syncthreads();
 
 	}
+}
+
+__global__ void rowSum_sm(float* in, float* out, const int w, const int h) {
+	int idy = threadIdx.x;
+	int b_id = blockIdx.x;
+	int Idy = blockDim.x*b_id + threadIdx.x;
+	if (Idy >= h)return;
+	__shared__ float sm_in[B_SIZE][B_SIZE];
+	__shared__ float sm_out[B_SIZE][B_SIZE];
+	
 }
