@@ -50,7 +50,7 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 	CHECK(cudaMemcpy(d_im, h_im, n_fl, cudaMemcpyHostToDevice));
 	CHECK(cudaMemcpy(d_mean_im, h_mean_im, n_fl, cudaMemcpyHostToDevice));
 	CHECK(cudaMemcpy(d_mean_cost, big_empty, size_d*n_fl, cudaMemcpyHostToDevice));
-	CHECK(cudaMemcpy(d_cost, big_empty, size_d*n_fl, cudaMemcpyHostToDevice));
+	CHECK(cudaMemcpy(d_cost, cost , size_d*n_fl, cudaMemcpyHostToDevice));
 
 	dim3 blockDim(128);
 
@@ -190,21 +190,22 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 		CHECK(cudaMemcpy(pki, d_pki, n_fl, cudaMemcpyDeviceToHost));
 
 		//compute pk_mean
-		integral(imSquare, pki_integral, w, h);
+		integral(pki, pki_integral, w, h);
 		CHECK(cudaMemcpy(d_pki_integral, pki_integral, n_fl, cudaMemcpyHostToDevice));
 		computeBoxFilter << < gdim2, bdim2 >> >(d_pki, d_pki_integral, d_pki_mean, (const int)w, (const int)h);
 
 		//I*p
 		CHECK(cudaMemcpy(convol, d_convol, n_fl, cudaMemcpyDeviceToHost));
 		pixelMultOnGPU << <gdim, bdim >> > (d_im, d_pki_mean, d_convol, n);
+		CHECK(cudaMemcpy(convol, d_convol, n_fl, cudaMemcpyDeviceToHost));
 
 		//mean(I*p)
 		integral(convol, convol_int, w, h);
 		CHECK(cudaMemcpy(d_convol_int, convol_int, n_fl, cudaMemcpyHostToDevice));
-		computeBoxFilter << < gdim2, bdim2 >> >(d_convol, d_convol_int, d_pki_mean, (const int)w, (const int)h);
+		computeBoxFilter << < gdim2, bdim2 >> >(d_convol, d_convol_int, d_convol_mean, (const int)w, (const int)h);
 
 		//Compute ak and bk
-		compute_ak << <gdim, bdim >> > (d_mean_im, d_var_im, d_convol, d_pki_mean,  d_ak, n);
+		compute_ak << <gdim, bdim >> > (d_mean_im, d_var_im, d_convol_mean, d_pki_mean,  d_ak, n);
 		compute_bk << <gdim, bdim >> > (d_mean_im, d_ak, d_pki_mean, d_bk, n);
 
 		//compute ai, bi
@@ -510,9 +511,11 @@ __global__ void copyFromLittleToBigOnGPU(float* image1, float* result, int start
 
 __global__ void compute_ak(float* mean, float* var, float* convol, float* pk, float* a, int len) {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	float c;
 	if (i < len)
 	{
-		a[i] = (convol[i] - mean[i]*pk[i])/(var[i] + EPS);
+		c = 1.0f / (var[i] + EPS);
+		a[i] = 1.0f*(convol[i] - mean[i]*pk[i])/c;
 	}
 }
 
@@ -529,7 +532,7 @@ __global__ void compute_bk(float* mean, float* a, float* pk, float* b, int len) 
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i < len)
 	{
-		b[i] = pk[i] - mean[i]*a[i];
+		b[i] = 1.0f*pk[i] - 1.0f*mean[i]*a[i];
 	}
 }
 __global__ void compute_q(float* im, float* a, float* b, float* q, int len) {

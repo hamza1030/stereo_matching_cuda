@@ -44,7 +44,7 @@ void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int
 	CHECK(cudaFree(d_i2));
 	free(h_cost);
 }
-void disparity_selection(float* filtered_cost, float* best_cost, float* disparity_map, const int w, const int h, bool host_gpu_compare) {
+void disparity_selection(float* filtered_cost, float* best_cost, float* disparity_map, const int w, const int h, const int dmin,bool host_gpu_compare) {
 	const int size_d = D_MAX - D_MIN + 1;
 	const int n = w * h;
 	int n_fl = w * h * sizeof(float);
@@ -62,7 +62,7 @@ void disparity_selection(float* filtered_cost, float* best_cost, float* disparit
 	dim3 gridDim((n +blockDim.x -1)/blockDim.x);
 	//gridDim.x = (w1*h1 + blockDim.x - 1)/blockDim.x;
 
-	selectionOnGpu<< <gridDim, blockDim >> > (d_filtered_cost, d_best_cost, d_dmap, n, size_d);
+	selectionOnGpu<< <gridDim, blockDim >> > (d_filtered_cost, d_best_cost, d_dmap, n, size_d, dmin);
 
 
 
@@ -81,14 +81,14 @@ void disparity_selection(float* filtered_cost, float* best_cost, float* disparit
 	CHECK(cudaFree(d_filtered_cost));
 }
 
-__global__ void selectionOnGpu(float* filt_cost, float* best_cost, float* dmap, const int n, const int dsize) {
+__global__ void selectionOnGpu(float* filt_cost, float* best_cost, float* dmap, const int n, const int dsize, const int dmin) {
 	int i = blockDim.x*blockIdx.x + threadIdx.x;
 	int offset = n;
 	if (i < n) {
 		for (int j = 0; j < dsize; j++) {
-			if (best_cost[i] >= filt_cost[i + j * n]) {
+			if (1.0f*best_cost[i] >= 1.0f*filt_cost[i + j * n]) {
 				best_cost[i] = filt_cost[i + j * n];
-				dmap[i] = D_MIN + j;
+				dmap[i] =  j;
 			}
 		}
 	}

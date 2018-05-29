@@ -170,10 +170,10 @@ int main(int argc, char **argv)
 	memset(costl, 0, sizeof(float)*h1*w1*(D_MAX - D_MIN + 1));
 	memset(costr, 0, sizeof(float)*h1*w1*(D_MAX - D_MIN + 1));
 	cout << "Cost Volume ..." << endl;
-	int dmin = D_MIN;
-	compute_cost(I_l, I_r, costl, w1, w2, h1, h2, dmin,host_compare);
-	dmin = -D_MAX;
-	compute_cost(I_r, I_l, costr, w2, w1, h2, h1, dmin,host_compare);
+	const int dminl = D_MIN;
+	compute_cost(I_l, I_r, costl, w1, w2, h1, h2, dminl,host_compare);
+	const int dminr = -D_MAX;
+	compute_cost(I_r, I_l, costr, w2, w1, h2, h1, dminr,host_compare);
 	//end cost volume
 
 	//guided Filter
@@ -202,9 +202,9 @@ int main(int argc, char **argv)
 	memset(dmapr, 0, w1*h1 * sizeof(float));
 	memset(dmaplChar, 0, w1*h1);
 	memset(dmaprChar, 0, w1*h1);
-	disparity_selection (filtered_costl, best_costl, dmapl, (const int) w1, (const int) h1, host_compare);
-	disparity_selection (filtered_costr, best_costr, dmapr, (const int)w2, (const int)h2, host_compare);
-	//for (int j = 0; j < n1; j++) { cout<< best_costl[j] <<endl; }
+	disparity_selection (filtered_costl, best_costl, dmapl, (const int) w1, (const int) h1, dminl,host_compare);
+	disparity_selection (filtered_costr, best_costr, dmapr, (const int)w2, (const int)h2, dminr,host_compare);
+	for (int i = 0; i < n1; i++) { cout << best_costl[i] << endl; }
 	const int dOcclusion = 2*size_d;
 	detect_occlusion(dmapl, dmapr, dOcclusion, dmaplChar, dmaprChar,  w1, h1);
 	int vMin = 3;

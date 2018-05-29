@@ -8,8 +8,8 @@
 #define G_W 0.587
 #define B_W 0.0721
 #define ALPHA 0.9
-#define D_MAX 3
-#define D_MIN 0
+#define D_MAX 0
+#define D_MIN -15
 #define TH_grad 2
 #define TH_color 7
 
