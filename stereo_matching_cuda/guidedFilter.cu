@@ -141,7 +141,7 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 	float* bk = (float*)malloc(n_fl);
 	float* ak_int = (float*)malloc(n_fl);
 	float* bk_int = (float*)malloc(n_fl);
-	float* d_pki_integral;
+	float* d_pki_int;
 	CHECK(cudaMalloc((void**)&d_pki, n_fl*size_d));
 	CHECK(cudaMalloc((void**)&d_ak, n_fl));
 	CHECK(cudaMalloc((void**)&d_bk, n_fl));
@@ -150,7 +150,7 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 	CHECK(cudaMalloc((void**)&d_ak_mean, n_fl));
 	CHECK(cudaMalloc((void**)&d_bk_mean, n_fl));
 	CHECK(cudaMalloc((void**)&d_convol, n_fl));
-	CHECK(cudaMalloc((void**)&d_pki_integral, n_fl));
+	CHECK(cudaMalloc((void**)&d_pki_int, n_fl));
 	CHECK(cudaMalloc((void**)&d_pki_mean, n_fl));
 	CHECK(cudaMalloc((void**)&d_convol_int, n_fl));
 	CHECK(cudaMalloc((void**)&d_convol_mean, n_fl));
@@ -170,7 +170,7 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 		memset(bk, 0.0f, n_fl);
 		memset(bk_int, 0.0f, n_fl);
 		CHECK(cudaMemcpy(d_pki, empty, n_fl, cudaMemcpyHostToDevice));
-		CHECK(cudaMemcpy(d_pki_integral, empty, n_fl, cudaMemcpyHostToDevice));
+		CHECK(cudaMemcpy(d_pki_int, empty, n_fl, cudaMemcpyHostToDevice));
 		CHECK(cudaMemcpy(d_pki_mean, empty, n_fl, cudaMemcpyHostToDevice));
 		CHECK(cudaMemcpy(d_convol, empty, n_fl, cudaMemcpyHostToDevice));
 		CHECK(cudaMemcpy(d_convol_int, empty, n_fl, cudaMemcpyHostToDevice));
@@ -188,16 +188,17 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 		//Cost -> pk
 		copyFromBigToLittleOnGPU << <gdim, bdim >> > (d_cost, d_pki, start, n);
 		CHECK(cudaMemcpy(pki, d_pki, n_fl, cudaMemcpyDeviceToHost));
+		cout << "p(15," << s << ") =" << pki[55] << endl;
 
 		//compute pk_mean
 		integral(pki, pki_integral, w, h);
-		CHECK(cudaMemcpy(d_pki_integral, pki_integral, n_fl, cudaMemcpyHostToDevice));
-		computeBoxFilter << < gdim2, bdim2 >> >(d_pki, d_pki_integral, d_pki_mean, (const int)w, (const int)h);
+		CHECK(cudaMemcpy(d_pki_int, pki_integral, n_fl, cudaMemcpyHostToDevice));
+		computeBoxFilter << < gdim2, bdim2 >> >(d_pki, d_pki_int, d_pki_mean, (const int)w, (const int)h);
 
 		//I*p
+		pixelMultOnGPU << <gdim, bdim >> > (d_im, d_pki, d_convol, n);
 		CHECK(cudaMemcpy(convol, d_convol, n_fl, cudaMemcpyDeviceToHost));
-		pixelMultOnGPU << <gdim, bdim >> > (d_im, d_pki_mean, d_convol, n);
-		CHECK(cudaMemcpy(convol, d_convol, n_fl, cudaMemcpyDeviceToHost));
+		cout << "P*I(55," << s << ") =" << convol[55] << ", I(55) ="<<h_im[55]<<endl;
 
 		//mean(I*p)
 		integral(convol, convol_int, w, h);
@@ -205,7 +206,7 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 		computeBoxFilter << < gdim2, bdim2 >> >(d_convol, d_convol_int, d_convol_mean, (const int)w, (const int)h);
 
 		//Compute ak and bk
-		compute_ak << <gdim, bdim >> > (d_mean_im, d_var_im, d_convol_mean, d_pki_mean,  d_ak, n);
+		compute_ak << <gdim, bdim >> > (d_mean_im, d_var_im, d_convol_mean, d_pki_mean, d_ak, n);
 		compute_bk << <gdim, bdim >> > (d_mean_im, d_ak, d_pki_mean, d_bk, n);
 
 		//compute ai, bi
@@ -254,7 +255,7 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 	CHECK(cudaFree(d_bk_int));
 	CHECK(cudaFree(d_ak_mean));
 	CHECK(cudaFree(d_bk_mean));
-	CHECK(cudaFree(d_pki_integral));
+	CHECK(cudaFree(d_pki_int));
 	CHECK(cudaFree(d_pki_mean));
 	CHECK(cudaFree(d_cost));
 	CHECK(cudaFree(d_mean_cost));
@@ -448,7 +449,7 @@ __global__ void chToFlOnGPU(unsigned char* image, float* result, int len) {
 	if (i < len)
 	{
 		unsigned int c = image[i];
-		result[i] = 1.0f*c / 255;
+		result[i] = 1.0f*c;
 	}
 }
 
@@ -456,7 +457,7 @@ __global__ void flToChOnGPU(float* image, unsigned char* result, int len) {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i < len)
 	{
-		int c = image[i] * 255.0;
+		int c = image[i];
 		result[i] = (c > 255) ? 255 : (unsigned char)c;
 	}
 }

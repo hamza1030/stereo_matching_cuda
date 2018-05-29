@@ -204,7 +204,7 @@ int main(int argc, char **argv)
 	memset(dmaprChar, 0, w1*h1);
 	disparity_selection (filtered_costl, best_costl, dmapl, (const int) w1, (const int) h1, dminl,host_compare);
 	disparity_selection (filtered_costr, best_costr, dmapr, (const int)w2, (const int)h2, dminr,host_compare);
-	for (int i = 0; i < n1; i++) { cout << best_costl[i] << endl; }
+	//for (int i = 0; i < n1; i++) { cout << best_costl[i] << endl; }
 	const int dOcclusion = 2*size_d;
 	detect_occlusion(dmapl, dmapr, dOcclusion, dmaplChar, dmaprChar,  w1, h1);
 	int vMin = 3;
