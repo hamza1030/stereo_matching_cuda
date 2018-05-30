@@ -1,7 +1,6 @@
 #include "helpers.cuh"
 
 bool check_errors(float* resCPU, float* resGPU, int len) {
-	cout << "KEKE" << endl;
 	bool res = true;
 	for (int i = 0; i < len; i++) {
 		//cout << i << " ResultGPU = " << resGPU[i] << " and ResultCPU= " << resCPU[i] << endl;

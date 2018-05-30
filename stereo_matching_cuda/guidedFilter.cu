@@ -1,5 +1,6 @@
 #include "guidedFilter.cuh"
 
+
 void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, float* disp_map, unsigned char* mean, const int w, const int h, const int size_d, int dmin, bool host_gpu_compare) {
 	int n = w * h;
 	int volume = size_d * w*h;
@@ -17,7 +18,6 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, fl
 	float* d_dmap;
 
 	//CPU var
-	float* fMean = (float*)malloc(n_fl);
 
 	float* h_im = (float*)malloc(n_fl);
 	float* h_mean_im = (float*)malloc(n_fl);
@@ -25,14 +25,15 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, fl
 	float* empty = (float*)malloc(n_fl);
 	float* big_empty = (float*)malloc(size_d*n_fl);
 
+
 	//memset
-	memset(fMean, 0, n);
 	memset(mean, 0, n);
 	memset(h_im, 0.0f, n_fl);
 	memset(h_mean_im, 0.0f, n_fl);
 	memset(h_var_im, 0.0f, n_fl);
 	memset(empty, 0.0f, n_fl);
 	memset(big_empty, 0.0f, n_fl*size_d);
+
 
 	//cuda malloc
 	CHECK(cudaMalloc((unsigned char**)&d_i, n));
@@ -44,6 +45,7 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, fl
 	CHECK(cudaMalloc((void**)&d_filt_cost, n_fl));
 	CHECK(cudaMalloc((void**)&d_dmap, n_fl));
 
+
 	//cuda memcpy host -> device
 	CHECK(cudaMemcpy(d_i, i, n, cudaMemcpyHostToDevice));
 	CHECK(cudaMemcpy(d_mean, mean, n, cudaMemcpyHostToDevice));
@@ -53,16 +55,13 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, fl
 	CHECK(cudaMemcpy(d_dmap, disp_map, n_fl, cudaMemcpyHostToDevice));
 	CHECK(cudaMemcpy(d_cost, cost, size_d*n_fl, cudaMemcpyHostToDevice));
 
-	float* h_filt_cost = (float*)malloc(n_fl * sizeof(float));
-	memset(h_filt_cost, 0, sizeof(float)*(n_fl));
-
-	CHECK(cudaMemcpy(h_filt_cost, d_filt_cost, n_fl, cudaMemcpyDeviceToHost));
-
 	dim3 blockDim(128);
 
 	dim3 gridDim((n + blockDim.x - 1) / blockDim.x);
 	//im unsigned char -> float
 	chToFlOnGPU << <gridDim, blockDim >> > (d_i, d_im, n);
+
+
 
 	//Compute Integral im1
 	CHECK(cudaMemcpy(h_im, d_im, n_fl, cudaMemcpyDeviceToHost));
@@ -71,11 +70,20 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, fl
 	memset(integral_im, 0.0f, n_fl);
 	integral(h_im, integral_im, w, h);
 
+
+
 	float* integral_imCPU = (float*)malloc(n_fl);
 	memset(integral_imCPU, 0.0f, n_fl);
 	integralOnCPU(h_im, integral_imCPU, w, h);
 	check_errors(integral_im, integral_imCPU, w * h);
 
+
+	/**
+	cout << "im(0,0) = " << h_im1[0] << " int(0,0) = " << integral_im1[0] << endl;
+	cout << "im(0,1) = " << h_im1[1] << " int(0,1) = " << integral_im1[1] << endl;
+	cout << "im(0,2) = " << h_im1[2] << " int(0,2) = " << integral_im1[2] << endl;
+	cout << "im(0,3) = " << h_im1[3] << " int(0,3) = " << integral_im1[3] << endl;
+	**/
 
 	float* d_integral_im;
 	CHECK(cudaMalloc((void**)&d_integral_im, n_fl));
@@ -83,21 +91,9 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, fl
 	dim3 y(16, 16);
 	dim3 x((w + y.x - 1) / y.x, (h + y.y - 1) / y.y);
 	computeBoxFilterOnGPU << < x, y >> > (d_im, d_integral_im, d_mean_im, (const int)w, (const int)h);
-
-	CHECK(cudaMemcpy(fMean, d_mean_im, n, cudaMemcpyDeviceToHost));
-	
-
-	computeBoxFilterOnCPU(h_im, integral_imCPU, h_mean_im, (const int)w, (const int)h);
-	//for (size_t i = 0; i < n; i++)
-	//{
-	//	cout << fMean[i] << endl;
-	//}
-	bool verif = check_errors(h_mean_im, fMean, n);
-	if (verif) cout << "Box filter ok!" << endl;
-
-
 	gridDim.x = (n + blockDim.x - 1) / blockDim.x;
 	flToChOnGPU << <gridDim, blockDim >> > (d_mean_im, d_mean, n);
+
 
 	//compute variance
 	float* d_imSquare;
@@ -161,6 +157,7 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, fl
 	float* ak_int = (float*)malloc(n_fl);
 	float* bk_int = (float*)malloc(n_fl);
 
+
 	CHECK(cudaMalloc((void**)&d_pki, n_fl*size_d));
 	CHECK(cudaMalloc((void**)&d_pki_int, n_fl));
 	CHECK(cudaMalloc((void**)&d_pki_mean, n_fl));
@@ -181,6 +178,7 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, fl
 
 	//loop over d range
 	for (int s = 0; s < size_d; s++) {
+
 		int start = s * n;
 		memset(pki_int, 0.0f, n_fl);
 		memset(pki, 0.0f, n_fl);
@@ -203,6 +201,8 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, fl
 		CHECK(cudaMemcpy(d_ak_mean, empty, n_fl, cudaMemcpyHostToDevice));
 		CHECK(cudaMemcpy(d_bk_mean, empty, n_fl, cudaMemcpyHostToDevice));
 		CHECK(cudaMemcpy(d_q, empty, n_fl, cudaMemcpyHostToDevice));
+
+
 
 		//Cost -> pk
 		copyFromBigToLittleOnGPU << <gdim, bdim >> > (d_cost, d_pki, start, n);
@@ -227,6 +227,7 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, fl
 		//Compute ak and bk
 		compute_ak_and_bk << <gdim, bdim >> > (d_mean_im, d_var_im, d_convol_mean, d_pki_mean, d_ak, d_bk, n);
 
+
 		//compute ai, bi
 		CHECK(cudaMemcpy(ak, d_ak, n_fl, cudaMemcpyDeviceToHost));
 		CHECK(cudaMemcpy(bk, d_bk, n_fl, cudaMemcpyDeviceToHost));
@@ -237,43 +238,23 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, fl
 		computeBoxFilterOnGPU << < gdim2, bdim2 >> > (d_ak, d_ak_int, d_ak_mean, (const int)w, (const int)h);
 		computeBoxFilterOnGPU << < gdim2, bdim2 >> > (d_bk, d_bk_int, d_bk_mean, (const int)w, (const int)h);
 
+
 		//compute qi
 		compute_q << <gdim, bdim >> > (d_im, d_ak_mean, d_bk_mean, d_q, n);
-		//int label = dmin + s;
 		int label = dmin + s;
 		//qi ->total filtered
 		dispSelectOnGPU << <gdim, bdim >> > (d_q, d_filt_cost, d_dmap, (const int)n, label);
 	}
 
-	float* h_q = (float*)malloc(n_fl * sizeof(float));
-	memset(h_q, 0, sizeof(float)*(n_fl));
+
+
+
 
 	CHECK(cudaDeviceSynchronize());
 	CHECK(cudaGetLastError());
 
 	CHECK(cudaMemcpy(filter_cost, d_filt_cost, n_fl, cudaMemcpyDeviceToHost));
 	CHECK(cudaMemcpy(disp_map, d_dmap, n_fl, cudaMemcpyDeviceToHost));
-	CHECK(cudaMemcpy(h_q, d_q, n_fl, cudaMemcpyDeviceToHost));
-
-	for (size_t i = 0; i < n; i++)
-	{
-		cout << filter_cost[i] << endl;
-	}
-
-	//for (int s = 0; s < size_d; s++)
-	//{
-	//	int label = dmin + s;
-
-	//	dispSelectOnCPU(h_q, h_filt_cost, disp_map, (const int)n, label);
-	//}
-
-	//
-
-	//bool verif = check_errors(h_filt_cost, filter_cost, n_fl);
-	//if (verif) cout << "Disp select ok!" << endl;
-
-	//free(h_filt_cost);
-	//free(h_q);
 
 	//free cuda memory
 	CHECK(cudaFree(d_i));
@@ -302,6 +283,8 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, fl
 	CHECK(cudaFree(d_convol_mean));
 	CHECK(cudaFree(d_q));
 
+
+
 	//free ram memory
 	free(h_im);
 	free(h_mean_im);
@@ -320,7 +303,6 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, fl
 	free(bk_int);
 }
 
-
 __global__ void computeBoxFilterOnGPU(float* image, float* integral, float* mean, const int w, const int h) {
 	int idx = blockIdx.x*blockDim.x + threadIdx.x;
 	int idy = blockIdx.y*blockDim.y + threadIdx.y;
@@ -328,19 +310,8 @@ __global__ void computeBoxFilterOnGPU(float* image, float* integral, float* mean
 		mean[idx + w * idy] = computeMeanOnGPU(image, integral, idx, idy, w, h);
 	}
 }
+
 __device__ float computeMeanOnGPU(float* I, float* S, int idx, int idy, const int w, const int h) {
-	/**
-	int i_x = max(idx - RADIUS, 0);
-	int i_y = max(idy - RADIUS, 0);
-	int j_x = min((idx + RADIUS), w-1);
-	int j_y = min((idy + RADIUS), h-1);
-	float S_1 = S[j_y*w + j_x];
-	float S_2 = (i_x < 1) ? 0 : S[j_y*w + (i_x - 1)];
-	float S_3 = (i_y < 1) ? 0 : S[(i_y - 1)*w + j_x];
-	float S_4 = ((i_x < 1) || (i_y < 1)) ? 0 : S[(i_y - 1)*w + (i_x - 1)];
-	float area = abs(j_y - i_y)*abs(j_x - i_x);
-	return (S_1 + S_4 - S_3 - S_2) / area;
-	**/
 	int ymin = max(-1, idy - RADIUS - 1);
 	int ymax = min(h - 1, idy + RADIUS);
 	int xmin = max(-1, idx - RADIUS - 1);
@@ -354,6 +325,7 @@ __device__ float computeMeanOnGPU(float* I, float* S, int idx, int idy, const in
 		val += S[ymin*w + xmin];
 	return (1.0f*val / ((xmax - xmin)*(ymax - ymin)));
 }
+
 
 void computeBoxFilterOnCPU(float* image, float* integral, float* mean, const int w, const int h)
 {
