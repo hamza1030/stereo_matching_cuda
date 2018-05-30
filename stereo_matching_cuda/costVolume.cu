@@ -254,15 +254,15 @@ __device__ int id_cost(int i, int j, int width, int height, int k) {
 __device__ float x_derivative(unsigned char* im, int col_index, int index, int width) {
 	if ((col_index + 1) < width && (col_index - 1) >= 0)
 	{
-		return (float)((im[index + 1] - im[index - 1]) / 2);
+		return ((float)(im[index + 1] - im[index - 1]) / 2);
 	}
 	else if (col_index + 1 == width)
 	{
-		return (float)((im[index] - im[index - 1]) / 2);
+		return ((float)(im[index] - im[index - 1]) / 2);
 	}
 	else if (col_index - 1 == 0)
 	{
-		return (float)((im[index + 1] - im[index]) / 2);
+		return ((float)(im[index + 1] - im[index]) / 2);
 	}
 }
 
@@ -303,7 +303,7 @@ __global__ void x_derivativeOnGPU(unsigned char* in, float* out, int w, int h) {
 	else if (idx + 1 == w) {
 		out[id] = ((int) in[id] - (int)in[id-1])*1.0f / 2;
 	}
-	else if (idx - 1 == 0) { 
+	else if (idx - 1 ==-1) { 
 		out[id] = ((int)in[id+1] - (int) in[id])*1.0f / 2;
 	}
 }
