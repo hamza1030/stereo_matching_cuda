@@ -157,8 +157,8 @@ int main(int argc, char **argv)
 	// Image loading
 	int w1, h1, ch1;
 	int w2, h2, ch2;
-	unsigned char *data1 = stbi_load("./data/tsukuba0.png", &w1, &h1, &ch1, 0);
-	unsigned char *data2 = stbi_load("./data/tsukuba1.png", &w2, &h2, &ch2, 0);
+	unsigned char *data1 = stbi_load("./data/tsukuba1.png", &w1, &h1, &ch1, 0);
+	unsigned char *data2 = stbi_load("./data/tsukuba0.png", &w2, &h2, &ch2, 0);
 	int n1 = w1 * h1;
 	int n2 = w2 * h2;
 
@@ -180,9 +180,9 @@ int main(int argc, char **argv)
 	cout << "Cost Volume ..." << endl;
 
 	const int dminl = D_MIN;
-	compute_cost(I_l, I_r, costl, w1, w2, h1, h2, dminl, !host_compare);
+	compute_cost(I_l, I_r, costl, w1, w2, h1, h2, dminl, host_compare);
 	const int dminr = -D_MAX;
-	compute_cost(I_r, I_l, costr, w2, w1, h2, h1, dminr, !host_compare);
+	compute_cost(I_r, I_l, costr, w2, w1, h2, h1, dminr, host_compare);
 	//end cost volume
 
 	//guided Filter

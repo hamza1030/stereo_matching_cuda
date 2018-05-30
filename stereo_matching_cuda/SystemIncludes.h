@@ -18,7 +18,7 @@
 
 #define TILE_HEIGHT 12
 #define TILE_WIDTH 12
-#define RADIUS 30
+#define RADIUS 9
 
 #define EPS 6.5025
 #define D_LR 0
