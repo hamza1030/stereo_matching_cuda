@@ -52,7 +52,7 @@ __host__ void covarianceOnCpu(char* I, char* out, int radius, char* mean) {
 }
 **/
 
-__global__ void boxFilterOnGpu(unsigned char* image, unsigned char* mean, int width, int height) {
+__global__ void boxFilterOnGPU(unsigned char* image, unsigned char* mean, int width, int height) {
 	int i = blockIdx.x * TILE_WIDTH + threadIdx.x - RADIUS;
 	int j = blockIdx.y * TILE_HEIGHT + threadIdx.y - RADIUS;
 	int ind = j * width + i;
@@ -138,16 +138,6 @@ void filter(unsigned char* image, int width, int height, unsigned char* mean, fl
 	memset(mean, 0, n);
 	memset(var, 0, sizeof(float)*n);
 
-	if (!cuda)
-	{
-		/**
-		Clock clock;
-		clock.init();
-		sumArraysOnHost(h_rgb, h_grayCPU, n, channels);
-		clock.getTotalTime();
-		return h_grayCPU;
-		**/
-	}
 
 	unsigned char* d_image;
 	unsigned char* d_mean;
@@ -175,7 +165,20 @@ void filter(unsigned char* image, int width, int height, unsigned char* mean, fl
 	int grid_h = height / TILE_HEIGHT + 1;
 
 	dim3 gridDim(grid_w, grid_h);
-	boxFilterOnGpu << <gridDim, blockDim >> > (d_image, d_mean, width, height);
+	boxFilterOnGPU << <gridDim, blockDim >> > (d_image, d_mean, width, height);
+
+
+	//if (host_gpu_compare) {
+	unsigned char* h_mean = (unsigned char*)malloc(n * sizeof(unsigned char));
+	memset(h_mean, 0, sizeof(unsigned char)*(n));
+
+	boxFilterOnCPU(image, h_mean, width, height);
+	bool verif = check_errors(h_mean, mean, n);
+	if (verif) cout << "Cost Volume ok!" << endl;
+
+	free(h_mean);
+	//}
+
 
 	blockDim.x =1024;
 	blockDim.y = 1;
@@ -215,4 +218,6 @@ void filter(unsigned char* image, int width, int height, unsigned char* mean, fl
 	CHECK(cudaFree(d_mult_im));
 	CHECK(cudaFree(d_mean2));
 	CHECK(cudaFree(d_mult_mean));
+
+	
 }
