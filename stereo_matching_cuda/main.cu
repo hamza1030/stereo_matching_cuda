@@ -157,8 +157,8 @@ int main(int argc, char **argv)
 	// Image loading
 	int w1, h1, ch1;
 	int w2, h2, ch2;
-	unsigned char *data1 = stbi_load("./data/tsukuba0.png", &w1, &h1, &ch1, 0);
-	unsigned char *data2 = stbi_load("./data/tsukuba1.png", &w2, &h2, &ch2, 0);
+	unsigned char *data1 = stbi_load("./data/tsukuba1.png", &w1, &h1, &ch1, 0);
+	unsigned char *data2 = stbi_load("./data/tsukuba0.png", &w2, &h2, &ch2, 0);
 	int n1 = w1 * h1;
 	int n2 = w2 * h2;
 
