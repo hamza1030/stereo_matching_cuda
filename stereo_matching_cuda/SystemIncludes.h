@@ -29,6 +29,7 @@
 
 
 #include <algorithm>
+#include <iterator>
 #include <cmath>
 #include <stdio.h>
 #include <string.h>

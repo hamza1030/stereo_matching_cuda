@@ -20,8 +20,12 @@ void detect_occlusion(float* disparityLeft, float* disparityRight, const float d
 	unsigned char* d_dmapl;
 	unsigned char* d_dmapr;
 
+
 	int n = w * h;
 
+	detect_occlusionOnCPU(disparityLeft, disparityRight, dOcclusion, w, h);
+
+	
 	//memset(disparityLeft, 0, n * sizeof(float));
 	CHECK(cudaMalloc((void**)&d_disparityLeft, n * sizeof(float)));
 	CHECK(cudaMalloc((void**)&d_disparityRight, n * sizeof(float)));
@@ -37,11 +41,9 @@ void detect_occlusion(float* disparityLeft, float* disparityRight, const float d
 	dim3 nThreadsPerBlock(1024);
 	dim3 nBlocks((n + nThreadsPerBlock.x - 1) / nThreadsPerBlock.x);
 
+	//detect_occlusionOnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityLeft, d_disparityRight, dOcclusion, w, h);
 	flToCh2OnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityLeft, d_dmapl, dOcclusion, n);
 	flToCh2OnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityRight, d_dmapr, dOcclusion, n);
-	detect_occlusionOnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityLeft, d_disparityRight, dOcclusion, w, h);
-	
-	
 
 	CHECK(cudaDeviceSynchronize());
 	CHECK(cudaGetLastError());
@@ -54,22 +56,45 @@ void detect_occlusion(float* disparityLeft, float* disparityRight, const float d
 	CHECK(cudaFree(d_disparityRight));
 	CHECK(cudaFree(d_dmapl));
 	CHECK(cudaFree(d_dmapr));
+
+	//for (int i = 0; i < n; i++) {
+	//	cout << i << " ResultGPU = " << disparityLeft[i] << endl;
+	//}
+
+	//float* h_disparityLeft = (float*)malloc(n * sizeof(float));
+	//float* h_disparityRight = (float*)malloc(n * sizeof(float));
+	//memcpy(h_disparityLeft, disparityLeft, n * sizeof(float));
+	//memcpy(h_disparityRight, disparityRight, n * sizeof(float));
+
+	//detect_occlusionOnCPU(h_disparityLeft, h_disparityRight, dOcclusion, w, h);
+	//bool verif = check_errors(h_disparityLeft, disparityLeft, n);
+	//if (verif) cout << "Disparity left ok!" << endl;
+	//verif = check_errors(h_disparityRight, disparityRight, n);
+	//if (verif) cout << "Disparity right ok!" << endl;
+
+	//free(h_disparityLeft);
+	//free(h_disparityRight);
 }
 
 /// Detect left-right discrepancies in disparity and put incoherent pixels to
 /// value \a dOcclusion in \a disparityLeft.
-void detect_occlusionOnCPU(float* disparityLeft, float* disparityRight, const float dOcclusion, const int dLR, const int w, const int h)
+void detect_occlusionOnCPU(float* disparityLeft, float* disparityRight, const float dOcclusion, const int w, const int h)
 {
+	int occlusion = 0;
 	for (int y = 0; y < h; y++)
 	{
 		for (int x = 0; x < w; x++)
 		{
 			int d = (int)disparityLeft[x + w * y];
-			int dprime = (int)disparityRight[x + w * y];
-			if (x + d < 0 || x + d >= w || abs(d + dprime) > dLR)
+			int dprime = (int)disparityRight[x + w * y + d];
+			if (x + d < 0 || x + d >= w || abs(d + dprime) > D_LR)
+			{
+				occlusion++;
 				disparityLeft[x + w * y] = dOcclusion;
+			}
 		}
 	}
+	cout << "occlusions: " << occlusion << endl;
 }
 
 // Filling

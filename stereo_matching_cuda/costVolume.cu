@@ -6,10 +6,9 @@ void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int
 	int size_cost = h1 * w1*size_d;
 	unsigned char* d_i1;
 	unsigned char* d_i2;
-	float* h_cost = (float*)malloc(size_cost * sizeof(float));
 	float* d_cost;
 	memset(cost, 0, sizeof(float)*(size_cost));
-	memset(h_cost, 0, sizeof(float)*(size_cost));
+	
 
 	CHECK(cudaMalloc((unsigned char**)&d_i1, w1 * h1));
 	CHECK(cudaMalloc((unsigned char**)&d_i2, w2 * h2));
@@ -33,21 +32,25 @@ void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int
 
 	//host side
 	if (host_gpu_compare) {
+		float* h_cost = (float*)malloc(size_cost * sizeof(float));
+		memset(h_cost, 0, sizeof(float)*(size_cost));
+
 		costVolumeOnCPU(i1, i2, h_cost, w1, w2, h1, h2, size_d, dmin);
 		bool verif = check_errors(h_cost, cost, size_cost);
 		if (verif) cout << "Cost Volume ok!" << endl;
+		
+		free(h_cost);
 	}
 
 	// free device global memory
 	CHECK(cudaFree(d_cost));
 	CHECK(cudaFree(d_i1));
 	CHECK(cudaFree(d_i2));
-	free(h_cost);
 }
 void disparity_selection(float* filtered_cost, float* best_cost, float* disparity_map, const int w, const int h, const int dmin,bool host_gpu_compare) {
 	const int size_d = D_MAX - D_MIN + 1;
 	const int n = w * h;
-	int n_fl = w * h * sizeof(float);
+	int n_fl = n * sizeof(float);
 	float* d_filtered_cost;
 	float* d_best_cost;
 	float* d_dmap;

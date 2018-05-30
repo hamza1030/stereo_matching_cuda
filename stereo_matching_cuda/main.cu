@@ -148,8 +148,8 @@ int main(int argc, char **argv)
 
 	//Begin
 	// Image loading
-	int w1,h1,ch1;
-	int w2,h2,ch2;
+	int w1, h1, ch1;
+	int w2, h2, ch2;
 	unsigned char *data1 = stbi_load("./data/tsukuba0.png", &w1, &h1, &ch1, 0);
 	unsigned char *data2 = stbi_load("./data/tsukuba1.png", &w2, &h2, &ch2, 0);
 	int n1 = w1 * h1;
@@ -162,52 +162,64 @@ int main(int argc, char **argv)
 	unsigned char* I_r = rgb_to_grayscale(data2, n2, ch2, host_compare);
 	//end rgb to grayscale
 
-	
 	//Cost volume
 	int size_d = D_MAX - D_MIN + 1;
-	float* costl = (float*)malloc(sizeof(float)*h1*w1*size_d);
-	float* costr = (float*)malloc(sizeof(float)*h2*w2*size_d);
-	memset(costl, 0, sizeof(float)*h1*w1*(D_MAX - D_MIN + 1));
-	memset(costr, 0, sizeof(float)*h1*w1*(D_MAX - D_MIN + 1));
+	int totalSize1 = n1 * size_d;
+	int totalSize2 = n2 * size_d;
+	float* costl = (float*)malloc(sizeof(float)*totalSize1);
+	float* costr = (float*)malloc(sizeof(float)*totalSize2);
+	memset(costl, 0, sizeof(float)*totalSize1);
+	memset(costr, 0, sizeof(float)*totalSize2);
 	cout << "Cost Volume ..." << endl;
+
 	const int dminl = D_MIN;
-	compute_cost(I_l, I_r, costl, w1, w2, h1, h2, dminl,host_compare);
+	compute_cost(I_l, I_r, costl, w1, w2, h1, h2, dminl, host_compare);
 	const int dminr = -D_MAX;
-	compute_cost(I_r, I_l, costr, w2, w1, h2, h1, dminr,host_compare);
+	compute_cost(I_r, I_l, costr, w2, w1, h2, h1, dminr, host_compare);
 	//end cost volume
 
 	//guided Filter
 	unsigned char* mean1 = (unsigned char*)malloc(n1);
 	unsigned char* mean2 = (unsigned char*)malloc(n2);
-	unsigned char* mean = (unsigned char*)malloc(height*width);
-	float* filtered_costl = (float*)malloc(size_d*n1 * sizeof(float));
-	float* filtered_costr = (float*)malloc(size_d*n1 * sizeof(float));
+	float* filtered_costl = (float*)malloc(sizeof(float) * totalSize1);
+	float* filtered_costr = (float*)malloc(sizeof(float) * totalSize2);
+	memset(mean1, 0, sizeof(unsigned char)*n1);
+	memset(mean2, 0, sizeof(unsigned char)*n2);
+	memset(filtered_costl, 0, sizeof(float)*totalSize1);
+	memset(filtered_costr, 0, sizeof(float)*totalSize2);
 	cout << "guided filter ..." << endl;
 	compute_guided_filter(I_l, costl, filtered_costl, mean1, (const int)w1, (const int)h1, (const int)size_d, host_compare);
 	compute_guided_filter(I_r, costr, filtered_costr, mean2, (const int)w2, (const int)h2, (const int)size_d, host_compare);
+
+	//unsigned char* mean = (unsigned char*)malloc(height*width); //osef
+	//memset(mean, 0, sizeof(unsigned char)*totalSize1);
 	//compute_guided_filter(grayscale, cost, filtered, mean, (const int)width, (const int)height, (const int)size_d, host_compare);
+	//stbi_write_png("./data/uhd_mean.png", width, height, 1, mean, 0);
+	//free(mean);
+
+
 	//end guided Filter
 
-	float* best_costl = (float*)malloc(w1*h1 * sizeof(float));
-	float* best_costr = (float*)malloc(w2*h2 * sizeof(float));
-	memset(best_costl, 10000*1.0f, w1*h1 * sizeof(float));
-	memset(best_costr, 10000*1.0f, w2*h2 * sizeof(float));
+	float* best_costl = (float*)malloc(n1 * sizeof(float));
+	float* best_costr = (float*)malloc(n2 * sizeof(float));
+	memset(best_costl, 9999999.0f, n1 * sizeof(float));
+	memset(best_costr, 9999999.0f, n2 * sizeof(float));
 
-
-	float* dmapl = (float*)malloc(w1*h1 * sizeof(float));
-	float* dmapr = (float*)malloc(w2*h2 * sizeof(float));
-	unsigned char* dmaplChar = (unsigned char*)malloc(w1*h1);
-	unsigned char* dmaprChar = (unsigned char*)malloc(w2*h2);
-	memset(dmapl, 0, w1*h1 * sizeof(float));
-	memset(dmapr, 0, w1*h1 * sizeof(float));
-	memset(dmaplChar, 0, w1*h1);
-	memset(dmaprChar, 0, w1*h1);
-	disparity_selection (filtered_costl, best_costl, dmapl, (const int) w1, (const int) h1, dminl,host_compare);
-	disparity_selection (filtered_costr, best_costr, dmapr, (const int)w2, (const int)h2, dminr,host_compare);
+	float* dmapl = (float*)malloc(n1 * sizeof(float));
+	float* dmapr = (float*)malloc(n2 * sizeof(float));
+	unsigned char* dmaplChar = (unsigned char*)malloc(n1);
+	unsigned char* dmaprChar = (unsigned char*)malloc(n2);
+	memset(dmapl, 0, n1 * sizeof(float));
+	memset(dmapr, 0, n2 * sizeof(float));
+	memset(dmaplChar, 0, n1);
+	memset(dmaprChar, 0, n2);
+	disparity_selection(filtered_costl, best_costl, dmapl, (const int)w1, (const int)h1, dminl, host_compare);
+	disparity_selection(filtered_costr, best_costr, dmapr, (const int)w2, (const int)h2, dminr, host_compare);
 	//for (int i = 0; i < n1; i++) { cout << best_costl[i] << endl; }
-	const int dOcclusion = 2*size_d;
-	detect_occlusion(dmapl, dmapr, dOcclusion, dmaplChar, dmaprChar,  w1, h1);
-	int vMin = 3;
+	//const int dOcclusion = 2 * size_d;
+	const int dOcclusion = (dminl - 1);
+	detect_occlusion(dmapl, dmapr, dOcclusion, dmaplChar, dmaprChar, w1, h1);
+	int vMin = dminl;
 	fill_occlusion(dmapl, w1, h1, vMin);
 
 	//write images
@@ -216,7 +228,6 @@ int main(int argc, char **argv)
 	stbi_write_png("./data/image_right.png", w2, h2, 1, I_r, 0);
 	stbi_write_png("./data/image_mean_left.png", w1, h1, 1, mean1, 0);
 	stbi_write_png("./data/image_mean_right.png", w2, h2, 1, mean2, 0);
-	stbi_write_png("./data/uhd_mean.png", width, height, 1, mean, 0);
 	stbi_write_png("./data/disparity_map_left.png", w1, h1, 1, dmaplChar, 0);
 	stbi_write_png("./data/disparity_map_right.png", w2, h2, 1, dmaprChar, 0);
 	//end writing images
@@ -231,7 +242,6 @@ int main(int argc, char **argv)
 	stbi_image_free(data2);
 	free(mean1);
 	free(mean2);
-	free(mean);
 	free(costl);
 	free(costr);
 	free(filtered_costl);
@@ -242,7 +252,6 @@ int main(int argc, char **argv)
 	free(best_costl);
 	free(dmaprChar);
 	free(dmaplChar);
-
 
 	return 0;
 }
