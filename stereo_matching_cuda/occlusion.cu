@@ -40,8 +40,10 @@ void detect_occlusion(float* disparityLeft, float* disparityRight, const float d
 	//detect_occlusionOnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityLeft, d_disparityRight, dOcclusion, w, h);
 	int minl = D_MIN;
 	int maxl = D_MAX;
+	int maxr = -1*D_MIN;
+	int minr = -1*D_MAX;
 	flToCh2OnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityLeft, d_dmapl, minl, maxl, n);
-	//flToCh2OnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityRight, d_dmapr, dminr, dmaxr, n);
+	flToCh2OnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityRight, d_dmapr, minr, maxr, n);
 	
 	
 
