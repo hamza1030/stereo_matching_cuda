@@ -69,7 +69,11 @@ __global__ void transpose(float* in, float* out, const int w, const int h) {
 			out[id_out] = temp[threadIdx.x][threadIdx.y];
 		}
 	}
-}
+} 
+
+	
+
+
 
 __global__ void rowSum(float * in, float * out, const int w, const int h)
 {
@@ -126,12 +130,3 @@ __global__ void colSum(float * in, float * out, const int w, const int h) {
 	}
 }
 
-__global__ void rowSum_sm(float* in, float* out, const int w, const int h) {
-	int idy = threadIdx.x;
-	int b_id = blockIdx.x;
-	int Idy = blockDim.x*b_id + threadIdx.x;
-	if (Idy >= h)return;
-	__shared__ float sm_in[B_SIZE][B_SIZE];
-	__shared__ float sm_out[B_SIZE][B_SIZE];
-	
-}

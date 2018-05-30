@@ -32,6 +32,9 @@ __global__ void compute_ak(float* mean, float* var, float* convol, float* pk, fl
 __global__ void compute_bk(float* mean, float* a, float* pk, float* b, int len);
 __global__ void compute_ak_and_bk(float* mean, float* var, float* convol, float* pk, float* a, float* b, int len);
 __global__ void compute_q(float* im, float* a, float* b, float* q, int len);
+__host__ void guided_filter_onCpu(unsigned char* im1, float* cost, float* filtered_cost, float* dmap, unsigned char* mean, const int w, const int h, const int size_d, int dmin);
+__host__ float computeMeanOnCPU(float* I, float* S, int idx, int idy, const int w, const int h);
+__host__ void computeBoxFilterOnCPU(float* image, float* integral, float* mean, const int w, const int h);
 /**
 __global__ void compute_mean_x(float *image, float *mean, int w, int h, int radius);
 __global__ void compute_mean_y(float *image, float *mean, int w, int h, int radius);

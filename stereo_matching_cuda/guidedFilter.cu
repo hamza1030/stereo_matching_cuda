@@ -207,9 +207,6 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, fl
 		//Cost -> pk
 		copyFromBigToLittleOnGPU << <gdim, bdim >> > (d_cost, d_pki, start, n);
 		CHECK(cudaMemcpy(pki, d_pki, n_fl, cudaMemcpyDeviceToHost));
-
-		//for (int i = 0; i < 10; i++) { cout << pki[i] << " =? " << cost[i] <<endl; }
-
 		//compute pk_mean
 		integral(pki, pki_int, w, h);
 		CHECK(cudaMemcpy(d_pki_int, pki_int, n_fl, cudaMemcpyHostToDevice));
@@ -588,3 +585,145 @@ __global__ void compute_q(float* im, float* a, float* b, float* q, int len) {
 	}
 }
 
+
+__host__ void guided_filter_onCpu(unsigned char* im1, float* cost, float* filtered_cost, float* dmap,unsigned char* mean, const int w, const int h, const int size_d, int dmin) {
+	//CPU var
+	int n= h * w;
+	int n_fl = sizeof(float)*h*w;
+	float* im = (float*)malloc(n_fl);
+	float* h_mean_im = (float*)malloc(n_fl);
+	float* h_mean_im2 = (float*)malloc(n_fl);
+	float* h_var_im = (float*)malloc(n_fl);
+	float* imXim = (float*)malloc(n_fl);
+	float* int_im = (float*)malloc(n_fl);
+	float* int_imXim = (float*)malloc(n_fl);
+	float* mean_imXim = (float*)malloc(n_fl);
+	
+
+
+	//memset
+	memset(mean, 0, n);
+	memset(im, 0.0f, n_fl);
+	chToFlOnCPU(im1, im, n);
+	pixelMultOnCPU(im, im, imXim,n);
+	integralOnCPU(im, int_im, w, h);
+	integralOnCPU(imXim, int_imXim, w, h);
+	computeBoxFilterOnCPU( im,  int_im, h_mean_im, w, h);
+	computeBoxFilterOnCPU(imXim, int_imXim, mean_imXim, w, h);
+	pixelMultOnCPU(h_mean_im, h_mean_im, h_mean_im2,n);
+	pixelSousOnCPU(mean_imXim, h_mean_im2,h_var_im,n);
+	
+
+
+
+
+
+
+
+	float* pki_int = (float*)malloc(n_fl);
+	float* pki = (float*)malloc(n_fl);
+	float* pki_mean = (float*)malloc(n_fl);
+	float* convol = (float*)malloc(n_fl);
+	float* convol_int = (float*)malloc(n_fl);
+	float* convol_mean = (float*)malloc(n_fl);
+	float* ak = (float*)malloc(n_fl);
+	float* bk = (float*)malloc(n_fl);
+	float* ak_int = (float*)malloc(n_fl);
+	float* bk_int = (float*)malloc(n_fl);
+	float* ak_mean = (float*)malloc(n_fl);
+	float* bk_mean = (float*)malloc(n_fl);
+	float* q = (float*)malloc(n_fl);
+	
+	for (int s = 0; s < size_d; s++) {
+		memset(pki_int, 0.0f, n_fl);
+		memset(pki, 0.0f, n_fl);
+		memset(convol, 0.0f, n_fl);
+		memset(convol_int, 0.0f, n_fl);
+		memset(ak, 0.0f, n_fl);
+		memset(ak_int, 0.0f, n_fl);
+		memset(bk, 0.0f, n_fl);
+		memset(bk_int, 0.0f, n_fl);
+		memset(ak_mean, 0.0f, n_fl);
+		memset(bk_mean, 0.0f, n_fl);
+		memset(pki_mean, 0.0f, n_fl);
+		memset(convol_mean, 0.0f, n_fl);
+		int start = s * w*h;
+		for (int k = 0; k < n; k++) {
+			pki[k] = cost[start + k];
+		}
+		pixelMultOnCPU(pki, im, convol, n);
+		integralOnCPU(convol, convol_int, w, h);
+		computeBoxFilterOnCPU(convol, convol_int, convol_mean, w, h);
+		integralOnCPU(pki, pki_int, w, h);
+		computeBoxFilterOnCPU(pki, pki_int, pki_mean, w, h);
+		for (int k = 0; k < n; k++) {
+			ak[k] = 1.0f*(convol_mean[k] - pki_mean[k]*h_mean_im[k]) / (h_var_im[k] + EPS);
+			bk[k] = 1.0f*(pki_mean[k] - ak[k] * h_mean_im[k]);
+		}
+		integralOnCPU(ak, ak_int, w, h);
+		computeBoxFilterOnCPU(ak, ak_int, ak_mean, w, h);
+		integralOnCPU(bk, bk_int, w, h);
+		computeBoxFilterOnCPU(bk, bk_int, bk_mean, w, h);
+		for (int k = 0; k < n; k++) {
+			q[k] = (ak_mean[k]*im[k]+bk_mean[k])*1.0f;
+			if (1.0f*filtered_cost[k] >= 1.0f*q[k]) {
+				dmap[k] = dmin + k;
+				filtered_cost[k] = q[k];
+
+			}
+		}
+
+	}
+	
+	flToChOnCPU(h_mean_im, mean, n);
+
+
+	free(h_mean_im);
+	free(h_mean_im2);
+	free(h_var_im);
+	free(imXim);
+	free(int_imXim);
+	free(mean_imXim);
+	free(pki_int);
+	free(pki);
+	free(convol);
+	free(convol_int);
+	free(ak);
+	free(ak_int);
+	free(bk);
+	free(bk_int);
+	free(ak_mean);
+	free(bk_mean);
+	free(pki_mean);
+	free(convol_mean);
+
+
+
+}
+
+__host__ float computeMeanOnCPU(float* I, float* S, int idx, int idy, const int w, const int h)
+{
+	int ymin = max(-1, idy - RADIUS - 1);
+	int ymax = min(h - 1, idy + RADIUS);
+	int xmin = max(-1, idx - RADIUS - 1);
+	int xmax = min(w - 1, idx + RADIUS);
+	float val = S[ymax*w + xmax];
+	if (xmin >= 0)
+		val -= S[ymax*w + xmin];
+	if (ymin >= 0)
+		val -= S[ymin*w + xmax];
+	if (xmin >= 0 && ymin >= 0)
+		val += S[ymin*w + xmin];
+	return (1.0f*val / ((xmax - xmin)*(ymax - ymin)));
+}
+
+__host__ void computeBoxFilterOnCPU(float* image, float* integral, float* mean, const int w, const int h)
+{
+	for (size_t i = 0; i < w; i++)
+	{
+		for (size_t j = 0; j < h; j++)
+		{
+			mean[i + w * j] = computeMeanOnCPU(image, integral, i, j, w, h);
+		}
+	}
+}

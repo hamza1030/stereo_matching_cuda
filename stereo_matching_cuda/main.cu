@@ -157,8 +157,8 @@ int main(int argc, char **argv)
 	// Image loading
 	int w1, h1, ch1;
 	int w2, h2, ch2;
-	unsigned char *data1 = stbi_load("./data/tsukuba1.png", &w1, &h1, &ch1, 0);
-	unsigned char *data2 = stbi_load("./data/tsukuba0.png", &w2, &h2, &ch2, 0);
+	unsigned char *data1 = stbi_load("./data/im2.png", &w1, &h1, &ch1, 0);
+	unsigned char *data2 = stbi_load("./data/im3.png", &w2, &h2, &ch2, 0);
 	int n1 = w1 * h1;
 	int n2 = w2 * h2;
 
@@ -188,10 +188,14 @@ int main(int argc, char **argv)
 	//guided Filter
 	unsigned char* mean1 = (unsigned char*)malloc(n1);
 	unsigned char* mean2 = (unsigned char*)malloc(n2);
+	unsigned char* h_mean1 = (unsigned char*)malloc(n1);
+	unsigned char* h_mean2 = (unsigned char*)malloc(n2);
 	float* filtered_costl = (float*)malloc(sizeof(float) * totalSize1);
 	float* filtered_costr = (float*)malloc(sizeof(float) * totalSize2);
 	memset(mean1, 0, sizeof(unsigned char)*n1);
 	memset(mean2, 0, sizeof(unsigned char)*n2);
+	memset(h_mean1, 0, sizeof(unsigned char)*n1);
+	memset(h_mean2, 0, sizeof(unsigned char)*n2);
 	memset(filtered_costl, 0, sizeof(float)*totalSize1);
 	memset(filtered_costr, 0, sizeof(float)*totalSize2);
 	
@@ -205,13 +209,23 @@ int main(int argc, char **argv)
 
 	float* best_costl = (float*)malloc(n1 * sizeof(float));
 	float* best_costr = (float*)malloc(n2 * sizeof(float));
+	float* h_best_costl = (float*)malloc(n1 * sizeof(float));
+	float* h_best_costr = (float*)malloc(n2 * sizeof(float));
 	memset(best_costl, 9999999.0f, n1 * sizeof(float));
 	memset(best_costr, 9999999.0f, n2 * sizeof(float));
+	memset(h_best_costl, 9999999.0f, n1 * sizeof(float));
+	memset(h_best_costr, 9999999.0f, n2 * sizeof(float));
 
 	float* dmapl = (float*)malloc(n1 * sizeof(float));
 	float* dmapr = (float*)malloc(n2 * sizeof(float));
 	memset(dmapl, 0, n1 * sizeof(float));
 	memset(dmapr, 0, n2 * sizeof(float));
+
+	float* h_dmapl = (float*)malloc(n1 * sizeof(float));
+	float* h_dmapr = (float*)malloc(n2 * sizeof(float));
+	memset(h_dmapl, 0, n1 * sizeof(float));
+	memset(h_dmapr, 0, n2 * sizeof(float));
+
 	unsigned char* dmaplChar = (unsigned char*)malloc(n1);
 	unsigned char* dmaprChar = (unsigned char*)malloc(n2);
 	memset(dmaplChar, 0, n1);
@@ -220,6 +234,8 @@ int main(int argc, char **argv)
 	cout << "guided filter ..." << endl;
 	compute_guided_filter(I_l, costl, best_costl, dmapl, mean1, (const int)w1, (const int)h1, (const int)size_d,dminl ,host_compare);
 	compute_guided_filter(I_r, costr, best_costr, dmapr, mean2, (const int)w2, (const int)h2, (const int)size_d, dminr,host_compare);
+	guided_filter_onCpu(I_l, costl, h_best_costl,  h_dmapl, h_mean1, w1, h1, size_d, dminl);
+	guided_filter_onCpu(I_r, costr, h_best_costr, h_dmapr, h_mean2, w2, h2, size_d, dminr);
 	//end guided Filter
 	//for (int i = 0; i < 30000; i++) { cout << dmapl[i] << endl; }
 
@@ -230,7 +246,7 @@ int main(int argc, char **argv)
 	cout << "guided filter ok" << endl;
 	//const int dOcclusion = 2 * size_d;
 	const int dOcclusion = (dminl - 1);
-	detect_occlusion(dmapl, dmapr, dOcclusion, dmaplChar, dmaprChar, w1, h1);
+	detect_occlusion(h_dmapl, h_dmapr, dOcclusion, dmaplChar, dmaprChar, w1, h1);
 	//for (int i = 0; i < 30000; i++) { cout << (int) dmaplChar[i] << endl; }
 	int vMin = D_MIN;
 	fill_occlusion(dmapl, w1, h1, vMin);
@@ -239,8 +255,8 @@ int main(int argc, char **argv)
 	cout << "writing images ..." << endl;
 	stbi_write_png("./data/image_left.png", w1, h1, 1, I_l, 0);
 	stbi_write_png("./data/image_right.png", w2, h2, 1, I_r, 0);
-	stbi_write_png("./data/image_mean_left.png", w1, h1, 1, mean1, 0);
-	stbi_write_png("./data/image_mean_right.png", w2, h2, 1, mean2, 0);
+	stbi_write_png("./data/image_mean_left.png", w1, h1, 1, h_mean1, 0);
+	stbi_write_png("./data/image_mean_right.png", w2, h2, 1, h_mean2, 0);
 	stbi_write_png("./data/disparity_map_left.png", w1, h1, 1, dmaplChar, 0);
 	stbi_write_png("./data/disparity_map_right.png", w2, h2, 1, dmaprChar, 0);
 	//end writing images
@@ -255,16 +271,23 @@ int main(int argc, char **argv)
 	stbi_image_free(data2);
 	free(mean1);
 	free(mean2);
+	free(h_mean1);
+	free(h_mean2);
 	free(costl);
 	free(costr);
 	free(filtered_costl);
 	free(filtered_costr);
 	free(dmapl);
 	free(dmapr);
+	free(h_dmapl);
+	free(h_dmapr);
 	free(best_costr);
 	free(best_costl);
 	free(dmaprChar);
 	free(dmaplChar);
+	free(h_best_costl);
+	free(h_best_costr);
+
 
 	return 0;
 }

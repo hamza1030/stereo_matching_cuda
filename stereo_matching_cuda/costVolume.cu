@@ -58,18 +58,9 @@ void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int
 		float* h_derivative1 = (float*)malloc(h1*w1* sizeof(float));
 		float* h_derivative2 = (float*)malloc(h2*w2 * sizeof(float));
 		memset(h_cost, 0, sizeof(float)*(size_cost));
-<<<<<<< HEAD
 		compute_costVolumeOnCpu(i1, i2, cost, h_derivative1, h_derivative2, w1, w2, h1, h2, size_d, dmin);
 		//bool verif = check_errors(h_cost, cost, size_cost);
 		//if (verif) cout << "Cost Volume ok!" << endl;
-=======
-
-		costVolumeOnCPU(i1, i2, h_cost, w1, w2, h1, h2, size_d, dmin);
-		bool verif = check_errors(h_cost, cost, size_cost);
-		if (verif) cout << "Cost Volume ok!" << endl;
-		//costVolumeOnCPU(i1, i2, cost, w1, w2, h1, h2, size_d, dmin);
-		
->>>>>>> 5cf52f37bb861b7a690c2314db90fbe4a5d5536c
 		free(h_cost);
 		free(h_derivative1);
 		free(h_derivative2);
@@ -365,7 +356,7 @@ __global__ void x_derivativeOnGPU(unsigned char* in, float* out, int w, int h) {
 	if ((idx - 1) >= 0 && idx + 1 < w) { 
 		out[id] = ((int) in[id + 1] - (int) in[id - 1])*1.0f / 2; 
 	}
-	else if (idx + 1 == w) {
+	else if (idx + 1 >= w) {
 		out[id] = ((int) in[id] - (int)in[id-1])*1.0f / 2;
 	}
 	else if (idx - 1 <=-1) { 
