@@ -180,9 +180,9 @@ int main(int argc, char **argv)
 	cout << "Cost Volume ..." << endl;
 
 	const int dminl = D_MIN;
-	compute_cost(I_l, I_r, costl, w1, w2, h1, h2, dminl, !host_compare);
+	compute_cost(I_l, I_r, costl, w1, w2, h1, h2, dminl, host_compare);
 	const int dminr = -D_MAX;
-	compute_cost(I_r, I_l, costr, w2, w1, h2, h1, dminr, !host_compare);
+	compute_cost(I_r, I_l, costr, w2, w1, h2, h1, dminr, host_compare);
 	//end cost volume
 
 	//guided Filter

@@ -3,6 +3,7 @@
 #define B_H (TILE_HEIGHT +2*RADIUS)
 #define B_W (TILE_WIDTH +2*RADIUS)
 
+void boxFilterOnCPU(unsigned char* image, unsigned char* mean, int width, int height);
 
 __global__ void boxFilterOnGPU(unsigned char* image, unsigned char* mean, int width, int height);
 __global__ void multIm(unsigned char* im1, unsigned char* im2, float* val, int width, int height);

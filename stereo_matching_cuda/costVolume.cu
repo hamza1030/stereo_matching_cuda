@@ -59,6 +59,7 @@ void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int
 		costVolumeOnCPU(i1, i2, h_cost, w1, w2, h1, h2, size_d, dmin);
 		bool verif = check_errors(h_cost, cost, size_cost);
 		if (verif) cout << "Cost Volume ok!" << endl;
+		//costVolumeOnCPU(i1, i2, cost, w1, w2, h1, h2, size_d, dmin);
 		
 		free(h_cost);
 	}
@@ -138,10 +139,10 @@ void costVolumeOnCPU(unsigned char* i1, unsigned char* i2, float* cost, int w1, 
 				int d = dmin + z;
 				if ((x + d < w2) && (x + d >= 0)) {
 					float diff_term = 1.0f*abs(i1[index] - i2[index + d]);
-					float grad_1 = 1.0f*x_derivativeCPU(i1, x, index, w1);
-					float grad_2 = 1.0f*x_derivativeCPU(i2, x + d, index + d, w2);
-					float grad_term = 1.0f*abs(grad_1 - grad_2);
-					c = (1 - alpha)*min(diff_term, th_color) + alpha * min(grad_term, 1.0f*th_grad);
+					float grad_1 = x_derivativeCPU(i1, x, index, w1);
+					float grad_2 = x_derivativeCPU(i2, x + d, index + d, w2);
+					float grad_term = abs(grad_1 - grad_2);
+					c = (1 - alpha)*min(diff_term, th_color) + alpha * min(grad_term, th_grad);
 				}
 				cost[id] = c;
 			}
@@ -268,15 +269,15 @@ __device__ float x_derivative(unsigned char* im, int col_index, int index, int w
 __host__ float x_derivativeCPU(unsigned char* im, int col_index, int index, int width) {
 	if ((col_index + 1) < width && (col_index - 1) >= 0)
 	{
-		return (float)((im[index + 1] - im[index - 1]) / 2);
+		return ((float)(im[index + 1] - im[index - 1]) / 2);
 	}
 	else if (col_index + 1 >= width)
 	{
-		return (float)((im[index] - im[index - 1]) / 2);
+		return ((float)(im[index] - im[index - 1]) / 2);
 	}
 	else
 	{
-		return (float)((im[index + 1] - im[index]) / 2);
+		return ((float)(im[index + 1] - im[index]) / 2);
 	}
 }
 
