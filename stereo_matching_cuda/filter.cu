@@ -1,48 +1,32 @@
 #include "filter.cuh"
 
-/**
-__host__ void boxFilterOnCpu(char*in, char* out, int radius)
+void boxFilterOnCPU(unsigned char* image, unsigned char* mean, int width, int height) 
 {
-	double* S = new double[w*h]; // Use double to mitigate precision loss
-	for (int i = w * h - 1; i >= 0; i--)
-		S[i] = static_cast<double>(tab[i]);
+	int n = width * height;
+	for (size_t i = 0; i < width; i++)
+	{
+		for (size_t j = 0; j < height; j++)
+		{
+			int ind = j * width + i;
 
-	//cumulative sum table S, eq. (24)
-	for (int y = 0; y<h; y++) { //horizontal
-		double *in = S + y * w, *out = in + 1;
-		for (int x = 1; x<w; x++)
-			*out++ += *in++;
-	}
-	for (int y = 1; y<h; y++) { //vertical
-		double *in = S + (y - 1)*w, *out = in + w;
-		for (int x = 0; x<w; x++)
-			*out++ += *in++;
-	}
+			float sum = 0;
 
-	//box filtered image B
-	Image B(w, h);
-	float *out = B.tab;
-	for (int y = 0; y<h; y++) {
-		int ymin = std::max(-1, y - radius - 1);
-		int ymax = std::min(h - 1, y + radius);
-		for (int x = 0; x<w; x++, out++) {
-			int xmin = std::max(-1, x - radius - 1);
-			int xmax = std::min(w - 1, x + radius);
-			// S(xmax,ymax)-S(xmin,ymax)-S(xmax,ymin)+S(xmin,ymin), eq. (25)
-			double val = S[ymax*w + xmax];
-			if (xmin >= 0)
-				val -= S[ymax*w + xmin];
-			if (ymin >= 0)
-				val -= S[ymin*w + xmax];
-			if (xmin >= 0 && ymin >= 0)
-				val += S[ymin*w + xmin];
-			*out = static_cast<float>(val / ((xmax - xmin)*(ymax - ymin))); //average
+			if (i < RADIUS || j > RADIUS) continue;
+
+			for (size_t ix = -RADIUS; ix <= RADIUS; ix++)
+			{
+				for (size_t iy = -RADIUS; iy <= RADIUS; iy++)
+				{
+					sum += image[(i + ix) + width * (j + iy)];
+				}
+			}
+			int val = sum / (2 * RADIUS + 1)*(2 * RADIUS + 1);
+			mean[ind] = (unsigned char)val;
 		}
 	}
-	delete[] S;
-	return B;
+
 }
-**/
+
 /**
 
 __host__ void covarianceOnCpu(char* I, char* out, int radius, char* mean) {
@@ -52,7 +36,7 @@ __host__ void covarianceOnCpu(char* I, char* out, int radius, char* mean) {
 }
 **/
 
-__global__ void boxFilterOnGpu(unsigned char* image, unsigned char* mean, int width, int height) {
+__global__ void boxFilterOnGPU(unsigned char* image, unsigned char* mean, int width, int height) {
 	int i = blockIdx.x * TILE_WIDTH + threadIdx.x - RADIUS;
 	int j = blockIdx.y * TILE_HEIGHT + threadIdx.y - RADIUS;
 	int ind = j * width + i;
@@ -138,16 +122,6 @@ void filter(unsigned char* image, int width, int height, unsigned char* mean, fl
 	memset(mean, 0, n);
 	memset(var, 0, sizeof(float)*n);
 
-	if (!cuda)
-	{
-		/**
-		Clock clock;
-		clock.init();
-		sumArraysOnHost(h_rgb, h_grayCPU, n, channels);
-		clock.getTotalTime();
-		return h_grayCPU;
-		**/
-	}
 
 	unsigned char* d_image;
 	unsigned char* d_mean;
@@ -175,7 +149,20 @@ void filter(unsigned char* image, int width, int height, unsigned char* mean, fl
 	int grid_h = height / TILE_HEIGHT + 1;
 
 	dim3 gridDim(grid_w, grid_h);
-	boxFilterOnGpu << <gridDim, blockDim >> > (d_image, d_mean, width, height);
+	boxFilterOnGPU << <gridDim, blockDim >> > (d_image, d_mean, width, height);
+
+
+	//if (host_gpu_compare) {
+	unsigned char* h_mean = (unsigned char*)malloc(n * sizeof(unsigned char));
+	memset(h_mean, 0, sizeof(unsigned char)*(n));
+
+	boxFilterOnCPU(image, h_mean, width, height);
+	bool verif = check_errors(h_mean, mean, n);
+	if (verif) cout << "Box filter ok!" << endl;
+
+	free(h_mean);
+	//}
+
 
 	blockDim.x =1024;
 	blockDim.y = 1;
@@ -215,4 +202,6 @@ void filter(unsigned char* image, int width, int height, unsigned char* mean, fl
 	CHECK(cudaFree(d_mult_im));
 	CHECK(cudaFree(d_mean2));
 	CHECK(cudaFree(d_mult_mean));
+
+	
 }
