@@ -8,7 +8,7 @@ __global__ void detect_occlusionOnGPU(float* disparityLeft, float* disparityRigh
 	if (tdx >= w * h) return;
 	int id = idy * w + idx;
 	int d = (int)disparityLeft[id];
-	int dprime = (int)disparityRight[id];
+	int dprime = (int)disparityRight[id + d];
 	if ((idx + d >= 0 || idx + d < w) && (abs(d + dprime) > D_LR))
 		disparityLeft[id] = dOcclusion;
 }
