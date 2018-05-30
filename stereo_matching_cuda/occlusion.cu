@@ -9,7 +9,7 @@ __global__ void detect_occlusionOnGPU(float* disparityLeft, float* disparityRigh
 	int id = idy * w + idx;
 	int d = (int)disparityLeft[id];
 	int dprime = (int)disparityRight[id];
-	if (idx + d < 0 || idx + d >= w || abs(d + dprime) > D_LR)
+	if ((idx + d >= 0 || idx + d < w) && (abs(d + dprime) > D_LR))
 		disparityLeft[id] = dOcclusion;
 }
 
@@ -37,9 +37,11 @@ void detect_occlusion(float* disparityLeft, float* disparityRight, const float d
 	dim3 nThreadsPerBlock(1024);
 	dim3 nBlocks((n + nThreadsPerBlock.x - 1) / nThreadsPerBlock.x);
 
-	flToCh2OnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityLeft, d_dmapl, dOcclusion, n);
-	flToCh2OnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityRight, d_dmapr, dOcclusion, n);
-	detect_occlusionOnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityLeft, d_disparityRight, dOcclusion, w, h);
+	//detect_occlusionOnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityLeft, d_disparityRight, dOcclusion, w, h);
+	int minl = D_MIN;
+	int maxl = D_MAX;
+	flToCh2OnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityLeft, d_dmapl, minl, maxl, n);
+	//flToCh2OnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityRight, d_dmapr, dminr, dmaxr, n);
 	
 	
 
@@ -193,11 +195,11 @@ void fill_occlusionOnCPU(float* disparity, const int w, const int h, const float
 		}
 	}
 }
-__global__ void flToCh2OnGPU(float* image, unsigned char* result, int max, int len) {
+__global__ void flToCh2OnGPU(float* image, unsigned char* result, int min, int max, int len) {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i < len)
 	{
-		int c = (image[i] / max) * 255.0;
+		int c = 255*1.0f*(image[i] + min)/(max -min);
 		result[i] = (c > 255) ? 255 : (unsigned char)c;
 	}
 }

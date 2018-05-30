@@ -6,7 +6,7 @@ bool check_errors(float* resCPU, float* resGPU, int len) {
 		//cout << i << " ResultGPU = " << resGPU[i] << " and ResultCPU= " << resCPU[i] << endl;
 		if (resCPU[i] != resGPU[i]) {
 			res = false;
-			//cout << "error at element: " << i << " ResultGPU = " << resGPU[i] << " and ResultCPU= " << resCPU[i] << endl;
+			cout << "error at element: " << i << " ResultGPU = " << resGPU[i] << " and ResultCPU= " << resCPU[i] << endl;
 		}
 	}
 	return res;

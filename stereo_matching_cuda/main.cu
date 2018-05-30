@@ -207,7 +207,7 @@ int main(int argc, char **argv)
 	//for (int i = 0; i < n1; i++) { cout << best_costl[i] << endl; }
 	const int dOcclusion = 2*size_d;
 	detect_occlusion(dmapl, dmapr, dOcclusion, dmaplChar, dmaprChar,  w1, h1);
-	int vMin = 3;
+	int vMin = D_MIN;
 	fill_occlusion(dmapl, w1, h1, vMin);
 
 	//write images

@@ -86,9 +86,9 @@ __global__ void selectionOnGpu(float* filt_cost, float* best_cost, float* dmap, 
 	int offset = n;
 	if (i < n) {
 		for (int j = 0; j < dsize; j++) {
-			if (1.0f*best_cost[i] >= 1.0f*filt_cost[i + j * n]) {
+			if (1.0f*best_cost[i] > 1.0f*filt_cost[i + j * n]) {
 				best_cost[i] = filt_cost[i + j * n];
-				dmap[i] =  j;
+				dmap[i] =  dmin + j;
 			}
 		}
 	}
@@ -227,11 +227,11 @@ __device__ float x_derivative(unsigned char* im, int col_index, int index, int w
 	{
 		return (float)((im[index + 1] - im[index - 1]) / 2);
 	}
-	else if (col_index + 1 == width)
+	else if (col_index + 1 >= width)
 	{
 		return (float)((im[index] - im[index - 1]) / 2);
 	}
-	else
+	else if (col_index - 1 < 0)
 	{
 		return (float)((im[index + 1] - im[index]) / 2);
 	}
@@ -242,7 +242,7 @@ __host__ float x_derivativeCPU(unsigned char* im, int col_index, int index, int 
 	{
 		return (float)((im[index + 1] - im[index - 1]) / 2);
 	}
-	else if (col_index + 1 == width)
+	else if (col_index + 1 >= width)
 	{
 		return (float)((im[index] - im[index - 1]) / 2);
 	}
