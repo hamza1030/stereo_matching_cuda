@@ -302,7 +302,7 @@ __global__ void x_derivativeOnGPU(unsigned char* in, float* out, int w, int h) {
 	else if (idx + 1 == w) {
 		out[id] = ((int) in[id] - (int)in[id-1])*1.0f / 2;
 	}
-	else if (idx - 1 == 0) { 
+	else if (idx - 1 ==-1) { 
 		out[id] = ((int)in[id+1] - (int) in[id])*1.0f / 2;
 	}
 }
