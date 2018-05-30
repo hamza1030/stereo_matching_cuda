@@ -63,7 +63,7 @@
 
 int main(int argc, char **argv)
 {
-	bool host_compare = true;
+	bool host_compare = false;
 	int wRadius = 3;
 
 	//// Image loading
@@ -234,6 +234,11 @@ int main(int argc, char **argv)
 	cout << "guided filter ..." << endl;
 	compute_guided_filter(I_l, costl, best_costl, dmapl, mean1, (const int)w1, (const int)h1, (const int)size_d,dminl ,host_compare);
 	compute_guided_filter(I_r, costr, best_costr, dmapr, mean2, (const int)w2, (const int)h2, (const int)size_d, dminr,host_compare);
+	if (host_compare) {
+		guided_filter_onCpu(I_l, costl, h_best_costl, h_dmapl, h_mean1, w1, h1, size_d, dminl);
+		guided_filter_onCpu(I_r, costr, h_best_costr, h_dmapr, h_mean2, w2, h2, size_d, dminr);
+
+	}
 	guided_filter_onCpu(I_l, costl, h_best_costl,  h_dmapl, h_mean1, w1, h1, size_d, dminl);
 	guided_filter_onCpu(I_r, costr, h_best_costr, h_dmapr, h_mean2, w2, h2, size_d, dminr);
 	//end guided Filter

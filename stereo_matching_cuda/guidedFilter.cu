@@ -90,7 +90,7 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, fl
 	CHECK(cudaMemcpy(d_integral_im, integral_im, n_fl, cudaMemcpyHostToDevice));
 	dim3 y(16, 16);
 	dim3 x((w + y.x - 1) / y.x, (h + y.y - 1) / y.y);
-	computeBoxFilter << < x, y >> > (d_im, d_integral_im, d_mean_im, (const int)w, (const int)h);
+	computeBoxFilterOnGPU << < x, y >> > (d_im, d_integral_im, d_mean_im, (const int)w, (const int)h);
 	gridDim.x = (n + blockDim.x - 1) / blockDim.x;
 	flToChOnGPU << <gridDim, blockDim >> > (d_mean_im, d_mean, n);
 
@@ -123,7 +123,7 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, fl
 	//mean(I*I)
 	integral(imSquare, integral_square, w, h);
 	CHECK(cudaMemcpy(d_integral_square, integral_square, n_fl, cudaMemcpyHostToDevice));
-	computeBoxFilter << < x, y >> > (d_imSquare, d_integral_square, d_temp, (const int)w, (const int)h);
+	computeBoxFilterOnGPU << < x, y >> > (d_imSquare, d_integral_square, d_temp, (const int)w, (const int)h);
 
 	//var = mean(I*I) - mean*mean
 	pixelSousOnGPU << <gridDim, blockDim >> > (d_temp, d_meanSquare, d_var_im, n);
@@ -210,7 +210,7 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, fl
 		//compute pk_mean
 		integral(pki, pki_int, w, h);
 		CHECK(cudaMemcpy(d_pki_int, pki_int, n_fl, cudaMemcpyHostToDevice));
-		computeBoxFilter << < gdim2, bdim2 >> > (d_pki, d_pki_int, d_pki_mean, (const int)w, (const int)h);
+		computeBoxFilterOnGPU << < gdim2, bdim2 >> > (d_pki, d_pki_int, d_pki_mean, (const int)w, (const int)h);
 
 		//I*p
 		pixelMultOnGPU << <gdim, bdim >> > (d_im, d_pki, d_convol, n);
@@ -219,7 +219,7 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, fl
 		//mean(I*p)
 		integral(convol, convol_int, w, h);
 		CHECK(cudaMemcpy(d_convol_int, convol_int, n_fl, cudaMemcpyHostToDevice));
-		computeBoxFilter << < gdim2, bdim2 >> > (d_convol, d_convol_int, d_convol_mean, (const int)w, (const int)h);
+		computeBoxFilterOnGPU << < gdim2, bdim2 >> > (d_convol, d_convol_int, d_convol_mean, (const int)w, (const int)h);
 
 		//Compute ak and bk
 		compute_ak_and_bk << <gdim, bdim >> > (d_mean_im, d_var_im, d_convol_mean, d_pki_mean, d_ak, d_bk, n);
@@ -232,8 +232,8 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, fl
 		integral(bk, bk_int, w, h);
 		CHECK(cudaMemcpy(d_ak_int, ak_int, n_fl, cudaMemcpyHostToDevice));
 		CHECK(cudaMemcpy(d_bk_int, bk_int, n_fl, cudaMemcpyHostToDevice));
-		computeBoxFilter << < gdim2, bdim2 >> > (d_ak, d_ak_int, d_ak_mean, (const int)w, (const int)h);
-		computeBoxFilter << < gdim2, bdim2 >> > (d_bk, d_bk_int, d_bk_mean, (const int)w, (const int)h);
+		computeBoxFilterOnGPU << < gdim2, bdim2 >> > (d_ak, d_ak_int, d_ak_mean, (const int)w, (const int)h);
+		computeBoxFilterOnGPU << < gdim2, bdim2 >> > (d_bk, d_bk_int, d_bk_mean, (const int)w, (const int)h);
 
 
 		//compute qi
@@ -280,7 +280,7 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, fl
 	CHECK(cudaFree(d_convol_mean));
 	CHECK(cudaFree(d_q));
 
-	
+
 
 	//free ram memory
 	free(h_im);
@@ -298,83 +298,17 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, fl
 	free(ak_int);
 	free(bk);
 	free(bk_int);
-
-}
-__global__ void dispSelectOnGPU(float* q, float* filter_cost, float* dmap, const int n, int label) {
-	int id = blockIdx.x*blockDim.x + threadIdx.x;
-	if (id < n) {
-		if (1.0f*filter_cost[id] >= 1.0f*q[id]) {
-			dmap[id] = label;
-			filter_cost[id] = q[id];
-		}
-	}
-
-}
-//CPU functions
-__host__ void chToFlOnCPU(unsigned char* image, float* result, int len) {
-	for (int i = 0; i < len; i++) {
-		unsigned int c = image[i];
-		result[i] = 1.0f*c;
-	}
 }
 
-__host__ void flToChOnCPU(float* image, unsigned char* result, int len) {
-	for (int i = 0; i < len; i++)
-	{
-		unsigned int c = image[i];
-		result[i] = (unsigned char)c;
-	}
-}
-
-__host__ void pixelMultOnCPU(float* image1, float* image2, float* result, int len) {
-	for (int i = 0; i < len; i++)
-	{
-		result[i] = image1[i] * image2[i];
-	}
-}
-
-__host__ void pixelSousOnCPU(float* image1, float* image2, float* result, int len) {
-	for (int i = 0; i < len; i++)
-	{
-		result[i] = image1[i] - image2[i];
-	}
-}
-
-__host__ void pixelAddOnCPU(float* image1, float* image2, float* result, int len) {
-	for (int i = 0; i < len; i++)
-	{
-		result[i] = image1[i] + image2[i];
-	}
-}
-
-__host__ void pixelDivOnCPU(float* image1, float* image2, float* result, int len) {
-	for (int i = 0; i < len; i++)
-	{
-		float c = image2[i];
-		if (c != 0) result[i] = image1[i] / c;
-	}
-}
-
-__global__ void computeBoxFilter(float* image, float* integral, float* mean, const int w, const int h) {
+__global__ void computeBoxFilterOnGPU(float* image, float* integral, float* mean, const int w, const int h) {
 	int idx = blockIdx.x*blockDim.x + threadIdx.x;
 	int idy = blockIdx.y*blockDim.y + threadIdx.y;
 	if (idx < w && idy < h) {
-		mean[idx + w * idy] = computeMean(image, integral, idx, idy, w, h);
+		mean[idx + w * idy] = computeMeanOnGPU(image, integral, idx, idy, w, h);
 	}
 }
-__device__ float computeMean(float* I, float* S, int idx, int idy, const int w, const int h) {
-	/**
-	int i_x = max(idx - RADIUS, 0);
-	int i_y = max(idy - RADIUS, 0);
-	int j_x = min((idx + RADIUS), w-1);
-	int j_y = min((idy + RADIUS), h-1);
-	float S_1 = S[j_y*w + j_x];
-	float S_2 = (i_x < 1) ? 0 : S[j_y*w + (i_x - 1)];
-	float S_3 = (i_y < 1) ? 0 : S[(i_y - 1)*w + j_x];
-	float S_4 = ((i_x < 1) || (i_y < 1)) ? 0 : S[(i_y - 1)*w + (i_x - 1)];
-	float area = abs(j_y - i_y)*abs(j_x - i_x);
-	return (S_1 + S_4 - S_3 - S_2) / area;
-	**/
+
+__device__ float computeMeanOnGPU(float* I, float* S, int idx, int idy, const int w, const int h) {
 	int ymin = max(-1, idy - RADIUS - 1);
 	int ymax = min(h - 1, idy + RADIUS);
 	int xmin = max(-1, idx - RADIUS - 1);
@@ -389,100 +323,128 @@ __device__ float computeMean(float* I, float* S, int idx, int idy, const int w, 
 	return (1.0f*val / ((xmax - xmin)*(ymax - ymin)));
 }
 
-/**
 
-// GPU functions
-
-__device__ void mean_x(float *id, float *od, int w, int h, int r)
+void computeBoxFilterOnCPU(float* image, float* integral, float* mean, const int w, const int h)
 {
-	float scale = 1.0f / (float)((r << 1) + 1);
-
-	float t;
-	// do left edge
-	t = id[0] * r;
-
-	for (int x = 0; x < (r + 1); x++)
+	for (size_t i = 0; i < w; i++)
 	{
-		t += id[x];
-	}
-
-	od[0] = t * scale;
-
-	for (int x = 1; x < (r + 1); x++)
-	{
-		t += id[x + r];
-		t -= id[0];
-		od[x] = t * scale;
-	}
-
-	// main loop
-	for (int x = (r + 1); x < w - r; x++)
-	{
-		t += id[x + r];
-		t -= id[x - r - 1];
-		od[x] = t * scale;
-	}
-
-	// do right edge
-	for (int x = w - r; x < w; x++)
-	{
-		t += id[w - 1];
-		t -= id[x - r - 1];
-		od[x] = t * scale;
+		for (size_t j = 0; j < h; j++)
+		{
+			mean[i + w * j] = computeMeanOnCPU(image, integral, i, j, w, h);
+		}
 	}
 }
 
-__device__ void mean_y(float *id, float *od, int w, int h, int r)
-{
-	float scale = 1.0f / (float)((r << 1) + 1);
 
-	float t;
-	// do left edge
-	t = id[0] * r;
+// q calculations
 
-	for (int y = 0; y < (r + 1); y++)
+__global__ void compute_ak(float* mean, float* var, float* convol, float* pk, float* a, int len) {
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	float c;
+	if (i < len)
 	{
-		t += id[y * w];
-	}
-
-	od[0] = t * scale;
-
-	for (int y = 1; y < (r + 1); y++)
-	{
-		t += id[(y + r) * w];
-		t -= id[0];
-		od[y * w] = t * scale;
-	}
-
-	// main loop
-	for (int y = (r + 1); y < (h - r); y++)
-	{
-		t += id[(y + r) * w];
-		t -= id[((y - r) * w) - w];
-		od[y * w] = t * scale;
-	}
-
-	// do right edge
-	for (int y = h - r; y < h; y++)
-	{
-		t += id[(h - 1) * w];
-		t -= id[((y - r) * w) - w];
-		od[y * w] = t * scale;
+		c = 1.0f / (var[i] + EPS);
+		a[i] = 1.0f*(convol[i] - mean[i] * pk[i]) / c;
 	}
 }
 
-__global__ void compute_mean_x(float *image, float *mean, int w, int h, int radius)
-{
-	unsigned int y = blockIdx.x*blockDim.x + threadIdx.x;
-	mean_x(&image[y * w], &mean[y * w], w, h, radius);
+__global__ void compute_ak_and_bk(float* mean, float* var, float* convol, float* pk, float* a, float* b, int len) {
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	float c;
+	if (i < len)
+	{
+		c = 1.0f / (var[i] + EPS);
+		a[i] = 1.0f*(convol[i] - mean[i] * pk[i]) / c;
+		b[i] = 1.0f*pk[i] - 1.0f*mean[i] * a[i];
+	}
 }
 
-__global__ void compute_mean_y(float *image, float *mean, int w, int h, int radius)
-{
-	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
-	mean_y(&image[x], &mean[x], w, h, radius);
+__global__ void compute_bk(float* mean, float* a, float* pk, float* b, int len) {
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i < len)
+	{
+		b[i] = 1.0f*pk[i] - 1.0f*mean[i] * a[i];
+	}
 }
-**/
+__global__ void compute_q(float* im, float* a, float* b, float* q, int len) {
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i < len)
+	{
+		q[i] = a[i] * im[i] + b[i];
+	}
+}
+
+// CPU
+void compute_akOnCPU(float* mean, float* var, float* convol, float* pk, float* a, int len) {
+	for (size_t i = 0; i < len; i++)
+	{
+		float c = 1.0f / (var[i] + EPS);
+		a[i] = 1.0f*(convol[i] - mean[i] * pk[i]) / c;
+	}
+}
+
+void compute_ak_and_bkOnCPU(float* mean, float* var, float* convol, float* pk, float* a, float* b, int len) {
+	for (size_t i = 0; i < len; i++)
+	{
+		float c = 1.0f / (var[i] + EPS);
+		a[i] = 1.0f*(convol[i] - mean[i] * pk[i]) / c;
+		b[i] = 1.0f*pk[i] - 1.0f*mean[i] * a[i];
+	}
+}
+
+void compute_bkOnCPU(float* mean, float* a, float* pk, float* b, int len) {
+	for (size_t i = 0; i < len; i++)
+	{
+		b[i] = 1.0f*pk[i] - 1.0f*mean[i] * a[i];
+	}
+}
+void compute_qOnCPU(float* im, float* a, float* b, float* q, int len) {
+	for (size_t i = 0; i < len; i++)
+	{
+		q[i] = a[i] * im[i] + b[i];
+	}
+}
+
+//disp selection
+__global__ void dispSelectOnGPU(float* q, float* filter_cost, float* dmap, const int n, int label) {
+	int id = blockIdx.x*blockDim.x + threadIdx.x;
+	if (id < n) {
+		if (1.0f*filter_cost[id] >= 1.0f*q[id]) {
+			dmap[id] = label;
+			filter_cost[id] = q[id];
+		}
+	}
+}
+
+void dispSelectOnCPU(float* q, float* filter_cost, float* dmap, const int n, int label)
+{
+	for (size_t i = 0; i < n; i++)
+	{
+		if (1.0f*filter_cost[i] >= 1.0f*q[i]) {
+			dmap[i] = label;
+			filter_cost[i] = q[i];
+		}
+	}
+}
+
+
+// simple operations"
+// GPU
+__global__ void copyFromBigToLittleOnGPU(float* image1, float* result, int start, int len) {
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i < len)
+	{
+		result[i] = image1[start + i];
+	}
+}
+__global__ void copyFromLittleToBigOnGPU(float* image1, float* result, int start, int len) {
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i < len)
+	{
+		result[i + start] = image1[i];
+	}
+}
+
 __global__ void chToFlOnGPU(unsigned char* image, float* result, int len) {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i < len)
@@ -534,55 +496,50 @@ __global__ void pixelDivOnGPU(float* image1, float* image2, float* result, int l
 	}
 }
 
-__global__ void copyFromBigToLittleOnGPU(float* image1, float* result, int start, int len) {
-	int i = blockIdx.x * blockDim.x + threadIdx.x;
-	if (i < len)
-	{
-		result[i] = image1[start + i];
-	}
-}
-__global__ void copyFromLittleToBigOnGPU(float* image1, float* result, int start, int len) {
-	int i = blockIdx.x * blockDim.x + threadIdx.x;
-	if (i < len)
-	{
-		result[i + start] = image1[i];
+//CPU functions
+__host__ void chToFlOnCPU(unsigned char* image, float* result, int len) {
+	for (int i = 0; i < len; i++) {
+		unsigned int c = image[i];
+		result[i] = 1.0f*c;
 	}
 }
 
-__global__ void compute_ak(float* mean, float* var, float* convol, float* pk, float* a, int len) {
-	int i = blockIdx.x * blockDim.x + threadIdx.x;
-	float c;
-	if (i < len)
+__host__ void flToChOnCPU(float* image, unsigned char* result, int len) {
+	for (int i = 0; i < len; i++)
 	{
-		c = 1.0f / (var[i] + EPS);
-		a[i] = 1.0f*(convol[i] - mean[i]*pk[i])/c;
+		unsigned int c = image[i];
+		result[i] = (unsigned char)c;
 	}
 }
 
-__global__ void compute_ak_and_bk(float* mean, float* var, float* convol, float* pk, float* a, float* b, int len) {
-	int i = blockIdx.x * blockDim.x + threadIdx.x;
-	float c;
-	if (i < len)
+__host__ void pixelMultOnCPU(float* image1, float* image2, float* result, int len) {
+	for (int i = 0; i < len; i++)
 	{
-		c = 1.0f / (var[i] + EPS);
-		a[i] = 1.0f*(convol[i] - mean[i] * pk[i]) / c;
-		b[i] = 1.0f*pk[i] - 1.0f*mean[i] * a[i];
+		result[i] = image1[i] * image2[i];
 	}
 }
 
-__global__ void compute_bk(float* mean, float* a, float* pk, float* b, int len) {
-	int i = blockIdx.x * blockDim.x + threadIdx.x;
-	if (i < len)
+__host__ void pixelSousOnCPU(float* image1, float* image2, float* result, int len) {
+	for (int i = 0; i < len; i++)
 	{
-		b[i] = 1.0f*pk[i] - 1.0f*mean[i]*a[i];
+		result[i] = image1[i] - image2[i];
 	}
 }
-__global__ void compute_q(float* im, float* a, float* b, float* q, int len) {
-	int i = blockIdx.x * blockDim.x + threadIdx.x;
-	if (i < len)
+
+__host__ void pixelAddOnCPU(float* image1, float* image2, float* result, int len) {
+	for (int i = 0; i < len; i++)
 	{
-		q[i] = a[i]*im[i] + b[i];
+		result[i] = image1[i] + image2[i];
 	}
+}
+
+__host__ void pixelDivOnCPU(float* image1, float* image2, float* result, int len) {
+	for (int i = 0; i < len; i++)
+	{
+		float c = image2[i];
+		if (c != 0) result[i] = image1[i] / c;
+	}
+
 }
 
 
@@ -715,15 +672,4 @@ __host__ float computeMeanOnCPU(float* I, float* S, int idx, int idy, const int 
 	if (xmin >= 0 && ymin >= 0)
 		val += S[ymin*w + xmin];
 	return (1.0f*val / ((xmax - xmin)*(ymax - ymin)));
-}
-
-__host__ void computeBoxFilterOnCPU(float* image, float* integral, float* mean, const int w, const int h)
-{
-	for (size_t i = 0; i < w; i++)
-	{
-		for (size_t j = 0; j < h; j++)
-		{
-			mean[i + w * j] = computeMeanOnCPU(image, integral, i, j, w, h);
-		}
-	}
 }

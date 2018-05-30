@@ -58,9 +58,11 @@ void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int
 		float* h_derivative1 = (float*)malloc(h1*w1* sizeof(float));
 		float* h_derivative2 = (float*)malloc(h2*w2 * sizeof(float));
 		memset(h_cost, 0, sizeof(float)*(size_cost));
+
 		compute_costVolumeOnCpu(i1, i2, cost, h_derivative1, h_derivative2, w1, w2, h1, h2, size_d, dmin);
 		//bool verif = check_errors(h_cost, cost, size_cost);
 		//if (verif) cout << "Cost Volume ok!" << endl;
+
 		free(h_cost);
 		free(h_derivative1);
 		free(h_derivative2);

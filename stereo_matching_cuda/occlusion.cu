@@ -20,6 +20,8 @@ void detect_occlusion(float* disparityLeft, float* disparityRight, const int dOc
 {
 	float* d_disparityLeft;
 	float* d_disparityRight;
+	float* h_disparityLeft = (float*)malloc(w*h * sizeof(float));
+	float* h_disparityRight = (float*)malloc(w*h * sizeof(float));
 	unsigned char* d_dmapl;
 	unsigned char* d_dmapr;
 
@@ -51,7 +53,7 @@ void detect_occlusion(float* disparityLeft, float* disparityRight, const int dOc
 	flToCh2OnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityLeft, d_dmapl, minl, maxl, n, dOcclusion);
 	flToCh2OnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityRight, d_dmapr, minr, maxr, n, dOcclusion);
 	detect_occlusionOnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityLeft, d_disparityRight, dOcclusion, w, h);
-	
+	detect_occlusionOnCPU(h_disparityLeft, h_disparityRight, dOcclusion, w, h);
 
 	CHECK(cudaMemcpy(disparityLeft, d_disparityLeft, n * sizeof(float), cudaMemcpyDeviceToHost));
 	CHECK(cudaMemcpy(dmapl, d_dmapl, n, cudaMemcpyDeviceToHost));
