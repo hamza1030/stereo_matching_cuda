@@ -56,9 +56,9 @@ void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int
 		float* h_cost = (float*)malloc(size_cost * sizeof(float));
 		memset(h_cost, 0, sizeof(float)*(size_cost));
 
-		costVolumeOnCPU(i1, i2, h_cost, w1, w2, h1, h2, size_d, dmin);
-		bool verif = check_errors(h_cost, cost, size_cost);
-		if (verif) cout << "Cost Volume ok!" << endl;
+		//costVolumeOnCPU(i1, i2, h_cost, w1, w2, h1, h2, size_d, dmin);
+		//bool verif = check_errors(h_cost, cost, size_cost);
+		//if (verif) cout << "Cost Volume ok!" << endl;
 		//costVolumeOnCPU(i1, i2, cost, w1, w2, h1, h2, size_d, dmin);
 		
 		free(h_cost);
