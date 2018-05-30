@@ -1,7 +1,7 @@
 #include "guidedFilter.cuh"
 
 
-void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsigned char* mean,const int w, const int h, const int size_d, bool host_gpu_compare) {
+void compute_guided_filter(unsigned char* i, float* cost, float* filtered, unsigned char* mean, const int w, const int h, const int size_d, bool host_gpu_compare) {
 	int n = w * h;
 	int volume = size_d * w*h;
 	int n_fl = sizeof(float)*n;
@@ -18,8 +18,8 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 
 	//CPU var
 
-	float* h_im = (float*) malloc(n_fl);
-	float* h_mean_im = (float*) malloc (n_fl);
+	float* h_im = (float*)malloc(n_fl);
+	float* h_mean_im = (float*)malloc(n_fl);
 	float* h_var_im = (float*)malloc(n_fl);
 	float* empty = (float*)malloc(n_fl);
 	float* big_empty = (float*)malloc(size_d*n_fl);
@@ -50,15 +50,15 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 	CHECK(cudaMemcpy(d_im, h_im, n_fl, cudaMemcpyHostToDevice));
 	CHECK(cudaMemcpy(d_mean_im, h_mean_im, n_fl, cudaMemcpyHostToDevice));
 	CHECK(cudaMemcpy(d_mean_cost, big_empty, size_d*n_fl, cudaMemcpyHostToDevice));
-	CHECK(cudaMemcpy(d_cost, cost , size_d*n_fl, cudaMemcpyHostToDevice));
+	CHECK(cudaMemcpy(d_cost, cost, size_d*n_fl, cudaMemcpyHostToDevice));
 
 	dim3 blockDim(128);
 
-	dim3 gridDim ((n + blockDim.x - 1) / blockDim.x);
+	dim3 gridDim((n + blockDim.x - 1) / blockDim.x);
 	//im unsigned char -> float
 	chToFlOnGPU << <gridDim, blockDim >> > (d_i, d_im, n);
 
-	
+
 
 	//Compute Integral im1
 	CHECK(cudaMemcpy(h_im, d_im, n_fl, cudaMemcpyDeviceToHost));
@@ -67,7 +67,7 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 	memset(integral_im, 0.0f, n_fl);
 	integral(h_im, integral_im, w, h);
 
-	
+
 
 	float* integral_imCPU = (float*)malloc(n_fl);
 	memset(integral_imCPU, 0.0f, n_fl);
@@ -87,11 +87,11 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 	CHECK(cudaMemcpy(d_integral_im, integral_im, n_fl, cudaMemcpyHostToDevice));
 	dim3 y(16, 16);
 	dim3 x((w + y.x - 1) / y.x, (h + y.y - 1) / y.y);
-	computeBoxFilter << < x, y >> >(d_im, d_integral_im, d_mean_im, (const int) w, (const int) h);
-	gridDim.x = (n + blockDim.x -1) / blockDim.x;
+	computeBoxFilter << < x, y >> > (d_im, d_integral_im, d_mean_im, (const int)w, (const int)h);
+	gridDim.x = (n + blockDim.x - 1) / blockDim.x;
 	flToChOnGPU << <gridDim, blockDim >> > (d_mean_im, d_mean, n);
 
-	
+
 	//compute variance
 	float* d_imSquare;
 	float* d_meanSquare;
@@ -116,10 +116,11 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 	CHECK(cudaMemcpy(imSquare, d_imSquare, n_fl, cudaMemcpyDeviceToHost));
 	integral(imSquare, integral_square, w, h);
 	CHECK(cudaMemcpy(d_integral_square, integral_square, n_fl, cudaMemcpyHostToDevice));
-	computeBoxFilter << < x, y >> >(d_imSquare, d_integral_square, d_temp, (const int)w, (const int)h);
-	pixelSousOnGPU << <gridDim, blockDim >> > (d_temp, d_meanSquare, d_var_im,n);
-	
-	//compute pk, a_k and b_k
+	computeBoxFilter << < x, y >> > (d_imSquare, d_integral_square, d_temp, (const int)w, (const int)h);
+	pixelSousOnGPU << <gridDim, blockDim >> > (d_temp, d_meanSquare, d_var_im, n);
+	CHECK(cudaMemcpy(mean, d_mean, n, cudaMemcpyDeviceToHost));
+	CHECK(cudaMemcpy(h_var_im, d_var_im, n_fl, cudaMemcpyDeviceToHost));
+	//compute pk, a_k and b_k, a_i, b_i, q
 	float* d_ak;
 	float* d_bk;
 	float* d_ak_int;
@@ -133,7 +134,7 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 	float* d_convol_int;
 	float* d_q;
 	float* d_convol_mean;
-	float* pki_integral = (float*)malloc(n_fl);
+	float* pki_int = (float*)malloc(n_fl);
 	float* pki = (float*)malloc(n_fl);
 	float* convol = (float*)malloc(n_fl);
 	float* convol_int = (float*)malloc(n_fl);
@@ -143,6 +144,8 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 	float* bk_int = (float*)malloc(n_fl);
 	float* d_pki_int;
 	CHECK(cudaMalloc((void**)&d_pki, n_fl*size_d));
+	CHECK(cudaMalloc((void**)&d_pki_int, n_fl));
+	CHECK(cudaMalloc((void**)&d_pki_mean, n_fl));
 	CHECK(cudaMalloc((void**)&d_ak, n_fl));
 	CHECK(cudaMalloc((void**)&d_bk, n_fl));
 	CHECK(cudaMalloc((void**)&d_ak_int, n_fl));
@@ -150,8 +153,6 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 	CHECK(cudaMalloc((void**)&d_ak_mean, n_fl));
 	CHECK(cudaMalloc((void**)&d_bk_mean, n_fl));
 	CHECK(cudaMalloc((void**)&d_convol, n_fl));
-	CHECK(cudaMalloc((void**)&d_pki_int, n_fl));
-	CHECK(cudaMalloc((void**)&d_pki_mean, n_fl));
 	CHECK(cudaMalloc((void**)&d_convol_int, n_fl));
 	CHECK(cudaMalloc((void**)&d_convol_mean, n_fl));
 	CHECK(cudaMalloc((void**)&d_q, n_fl));
@@ -161,7 +162,7 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 	dim3 gdim2((w + y.x - 1) / y.x, (h + y.y - 1) / y.y);
 	for (int s = 0; s < size_d; s++) {
 		int start = s*w*h;
-		memset(pki_integral, 0.0f, n_fl);
+		memset(pki_int, 0.0f, n_fl);
 		memset(pki, 0.0f, n_fl);
 		memset(convol, 0.0f, n_fl);
 		memset(convol_int, 0.0f, n_fl);
@@ -177,28 +178,26 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 		CHECK(cudaMemcpy(d_convol_mean, empty, n_fl, cudaMemcpyHostToDevice));
 		CHECK(cudaMemcpy(d_ak, empty, n_fl, cudaMemcpyHostToDevice));
 		CHECK(cudaMemcpy(d_bk, empty, n_fl, cudaMemcpyHostToDevice));
-		CHECK(cudaMemcpy(d_q, empty, n_fl, cudaMemcpyHostToDevice));
 		CHECK(cudaMemcpy(d_ak_int, empty, n_fl, cudaMemcpyHostToDevice));
 		CHECK(cudaMemcpy(d_bk_int, empty, n_fl, cudaMemcpyHostToDevice));
 		CHECK(cudaMemcpy(d_ak_mean, empty, n_fl, cudaMemcpyHostToDevice));
 		CHECK(cudaMemcpy(d_bk_mean, empty, n_fl, cudaMemcpyHostToDevice));
+		CHECK(cudaMemcpy(d_q, empty, n_fl, cudaMemcpyHostToDevice));
 
 
 		
 		//Cost -> pk
 		copyFromBigToLittleOnGPU << <gdim, bdim >> > (d_cost, d_pki, start, n);
 		CHECK(cudaMemcpy(pki, d_pki, n_fl, cudaMemcpyDeviceToHost));
-		cout << "p(15," << s << ") =" << pki[55] << endl;
 
 		//compute pk_mean
-		integral(pki, pki_integral, w, h);
-		CHECK(cudaMemcpy(d_pki_int, pki_integral, n_fl, cudaMemcpyHostToDevice));
+		integral(pki, pki_int, w, h);
+		CHECK(cudaMemcpy(d_pki_int, pki_int, n_fl, cudaMemcpyHostToDevice));
 		computeBoxFilter << < gdim2, bdim2 >> >(d_pki, d_pki_int, d_pki_mean, (const int)w, (const int)h);
 
 		//I*p
 		pixelMultOnGPU << <gdim, bdim >> > (d_im, d_pki, d_convol, n);
 		CHECK(cudaMemcpy(convol, d_convol, n_fl, cudaMemcpyDeviceToHost));
-		cout << "P*I(55," << s << ") =" << convol[55] << ", I(55) ="<<h_im[55]<<endl;
 
 		//mean(I*p)
 		integral(convol, convol_int, w, h);
@@ -233,8 +232,7 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 
 	CHECK(cudaDeviceSynchronize());
 	CHECK(cudaGetLastError());
-	CHECK(cudaMemcpy(mean, d_mean, n, cudaMemcpyDeviceToHost));
-	CHECK(cudaMemcpy(h_var_im, d_var_im, n_fl, cudaMemcpyDeviceToHost));
+	
 	CHECK(cudaMemcpy(filtered, d_mean_cost, n_fl*size_d, cudaMemcpyDeviceToHost));
 
 
@@ -275,7 +273,7 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filtered ,unsig
 	free(empty);
 	free(big_empty);
 	free(pki);
-	free(pki_integral);
+	free(pki_int);
 	free(convol);
 	free(convol_int);
 	free(ak);
@@ -338,6 +336,7 @@ __global__ void computeBoxFilter(float* image, float* integral, float* mean, con
 	}
 }
 __device__ float computeMean(float* I, float* S, int idx, int idy, const int w, const int h) {
+	/**
 	int i_x = max(idx - RADIUS, 0);
 	int i_y = max(idy - RADIUS, 0);
 	int j_x = min((idx + RADIUS), w-1);
@@ -348,6 +347,19 @@ __device__ float computeMean(float* I, float* S, int idx, int idy, const int w, 
 	float S_4 = ((i_x < 1) || (i_y < 1)) ? 0 : S[(i_y - 1)*w + (i_x - 1)];
 	float area = abs(j_y - i_y)*abs(j_x - i_x);
 	return (S_1 + S_4 - S_3 - S_2) / area;
+	**/
+	int ymin = max(-1, idy - RADIUS - 1);
+	int ymax = min(h - 1, idy + RADIUS);
+	int xmin = max(-1, idx - RADIUS - 1);
+	int xmax = min(w - 1, idx + RADIUS);
+	float val = S[ymax*w + xmax];
+	if (xmin >= 0)
+		val -= S[ymax*w + xmin];
+	if (ymin >= 0)
+		val -= S[ymin*w + xmax];
+	if (xmin >= 0 && ymin >= 0)
+		val += S[ymin*w + xmin];
+	return (1.0f*val / ((xmax - xmin)*(ymax - ymin)));
 }
 
 /**
