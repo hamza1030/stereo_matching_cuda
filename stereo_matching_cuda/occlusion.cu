@@ -1,19 +1,22 @@
 #include "occlusion.cuh"
 
-__global__ void detect_occlusionOnGPU(float* disparityLeft, float* disparityRight, const float dOcclusion, const int w, const int h)
+__global__ void detect_occlusionOnGPU(float* disparityLeft, float* disparityRight, const int dOcclusion, const int w, const int h)
 {
-	int tdx = blockIdx.x * blockDim.x + threadIdx.x;
-	int idx = tdx % w;
-	int idy = tdx / w;
-	if (tdx >= w * h) return;
-	int id = idy * w + idx;
-	int d = (int)disparityLeft[id];
-	int dprime = (int)disparityRight[id + d];
-	if ((idx + d >= 0 || idx + d < w) && (abs(d + dprime) > D_LR))
-		disparityLeft[id] = dOcclusion;
+	int id = blockIdx.x * blockDim.x + threadIdx.x;
+	int idx = id % w;
+	if (id < w*h) {
+	    int d = (int) disparityLeft[id];
+		float diff = 1.0f*(D_LR + 1);
+		if (idx + d >= 0 && idx + d < w) {
+			diff = abs(d - disparityRight[id + d]);
+		}
+		disparityLeft[id] = (diff > D_LR) ? dOcclusion:d;
+
+	}
+	
 }
 
-void detect_occlusion(float* disparityLeft, float* disparityRight, const float dOcclusion, unsigned char* dmapl, unsigned char* dmapr, const int w, const int h)
+void detect_occlusion(float* disparityLeft, float* disparityRight, const int dOcclusion, unsigned char* dmapl, unsigned char* dmapr, const int w, const int h)
 {
 	float* d_disparityLeft;
 	float* d_disparityRight;
@@ -45,17 +48,17 @@ void detect_occlusion(float* disparityLeft, float* disparityRight, const float d
 	int maxl = D_MAX;
 	int maxr = -1*D_MIN;
 	int minr = -1*D_MAX;
-	flToCh2OnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityLeft, d_dmapl, minl, maxl, n);
-	flToCh2OnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityRight, d_dmapr, minr, maxr, n);
+	flToCh2OnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityLeft, d_dmapl, minl, maxl, n, dOcclusion);
+	flToCh2OnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityRight, d_dmapr, minr, maxr, n, dOcclusion);
 	detect_occlusionOnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityLeft, d_disparityRight, dOcclusion, w, h);
 	
 
+	CHECK(cudaMemcpy(disparityLeft, d_disparityLeft, n * sizeof(float), cudaMemcpyDeviceToHost));
+	CHECK(cudaMemcpy(dmapl, d_dmapl, n, cudaMemcpyDeviceToHost));
+	CHECK(cudaMemcpy(dmapr, d_dmapr, n, cudaMemcpyDeviceToHost));
+
 	CHECK(cudaDeviceSynchronize());
 	CHECK(cudaGetLastError());
-
-	CHECK(cudaMemcpy(disparityLeft, d_disparityLeft, n * sizeof(float), cudaMemcpyDeviceToHost));
-	CHECK(cudaMemcpy(dmapl, d_dmapl, n , cudaMemcpyDeviceToHost));
-	CHECK(cudaMemcpy(dmapr, d_dmapr, n, cudaMemcpyDeviceToHost));
 
 	CHECK(cudaFree(d_disparityLeft));
 	CHECK(cudaFree(d_disparityRight));
@@ -83,7 +86,8 @@ void detect_occlusion(float* disparityLeft, float* disparityRight, const float d
 
 /// Detect left-right discrepancies in disparity and put incoherent pixels to
 /// value \a dOcclusion in \a disparityLeft.
-void detect_occlusionOnCPU(float* disparityLeft, float* disparityRight, const float dOcclusion, const int w, const int h)
+
+void detect_occlusionOnCPU(float* disparityLeft, float* disparityRight, const int dOcclusion, const int w, const int h)
 {
 	int occlusion = 0;
 	for (int y = 0; y < h; y++)
@@ -223,11 +227,11 @@ void fill_occlusionOnCPU(float* disparity, const int w, const int h, const float
 		}
 	}
 }
-__global__ void flToCh2OnGPU(float* image, unsigned char* result, int min, int max, int len) {
+__global__ void flToCh2OnGPU(float* image, unsigned char* result, int min, int max, int len, const int dOcclusion) {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
-	if (i < len)
-	{
-		int c = 255*1.0f*(image[i] + min)/(max -min);
-		result[i] = (c > 255) ? 255 : (unsigned char)c;
-	}
+	if (i >= len) { return;}
+	float pix = image[i];
+	float c = 1.0f*160*(pix - min)/(1.0f*(max -min));
+	unsigned char val = (c > 255) ? 255 : (unsigned char)c;
+	result[i] = val;
 }

@@ -4,8 +4,8 @@
 #include "integral.cuh"
 #include "helpers.cuh"
 
-void compute_guided_filter(unsigned char* i, float* cost, float* filtered, unsigned char* mean, const int w, const int h, const int size_d, bool host_gpu_compare);
-
+void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, float* disp_map, unsigned char* mean, const int w, const int h, const int size_d, int dmin, bool host_gpu_compare);
+__global__ void dispSelectOnGPU(float* q, float* filter_cost, float* dmap, const int n, int label);
 
 
 
