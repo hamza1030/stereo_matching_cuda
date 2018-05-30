@@ -6,23 +6,44 @@ void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int
 	int size_cost = h1 * w1*size_d;
 	unsigned char* d_i1;
 	unsigned char* d_i2;
+	float* d_xder1;
+	float* d_xder2;
 	float* d_cost;
-	memset(cost, 0, sizeof(float)*(size_cost));
+	float* derivative1 = (float*)malloc(h1*w1 * sizeof(float));
+	float* derivative2 = (float*)malloc(h2*w2 * sizeof(float));
+	memset(derivative1, 0.0f, h1*w1 * sizeof(float));
+	memset(derivative2, 0.0f, h2*w2 * sizeof(float));
+	memset(cost, 0.0f, size_d*h2*w2 * sizeof(float));
 	
 
 	CHECK(cudaMalloc((unsigned char**)&d_i1, w1 * h1));
 	CHECK(cudaMalloc((unsigned char**)&d_i2, w2 * h2));
+	CHECK(cudaMalloc((void**)&d_xder1, w1 * h1 * sizeof(float)));
+	CHECK(cudaMalloc((void**)&d_xder2, w2 * h2 * sizeof(float)));
 	CHECK(cudaMalloc((void**)&d_cost, size_cost * sizeof(float)));
 	CHECK(cudaMemcpy(d_i1, i1, w1 * h1, cudaMemcpyHostToDevice));
 	CHECK(cudaMemcpy(d_i2, i2, w2 * h2, cudaMemcpyHostToDevice));
+	CHECK(cudaMemcpy(d_xder1, derivative1, w1 * h1*sizeof(float), cudaMemcpyHostToDevice));
+	CHECK(cudaMemcpy(d_xder2, derivative2, w2 * h2*sizeof(float), cudaMemcpyHostToDevice));
 	CHECK(cudaMemcpy(d_cost, cost, sizeof(float)*size_cost, cudaMemcpyHostToDevice));
+	dim3 blockDim1(1024);
+	dim3 gridDim1 ((h1*w1 + blockDim1.x -1)/blockDim1.x);
+	dim3 blockDim2(1024);
+	dim3 gridDim2((h2*w2 + blockDim2.x - 1) / blockDim2.x);
+	x_derivativeOnGPU << <gridDim1, blockDim1 >> >(d_i1, d_xder1, w1, h1);
+	x_derivativeOnGPU << <gridDim2, blockDim2 >> >(d_i2, d_xder2, w2, h2);
+	CHECK(cudaMemcpy(derivative1, d_xder1, h1*w1 * sizeof(float), cudaMemcpyDeviceToHost));
+	CHECK(cudaMemcpy(derivative2, d_xder2, h2*w2 * sizeof(float), cudaMemcpyDeviceToHost));
+
 	dim3 blockDim(32, size_d);
 	dim3 gridDim;
 	//gridDim.x = (w1*h1 + blockDim.x - 1)/blockDim.x;
 	gridDim.x = iDivUp(w1*h1, blockDim.x);
 	gridDim.y = 1;//size_d;
 
-	costVolumOnGPU2 << <gridDim, blockDim >> > (d_i1, d_i2, d_cost, w1, w2, h1, h2, size_d, dmin);
+	costVolumOnGPU2 << <gridDim, blockDim >> > (d_i1, d_i2, d_cost, d_xder1, d_xder2, w1, w2, h1, h2, size_d, dmin);
+
+
 	CHECK(cudaDeviceSynchronize());
 
 	// check kernel error
@@ -46,6 +67,10 @@ void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int
 	CHECK(cudaFree(d_cost));
 	CHECK(cudaFree(d_i1));
 	CHECK(cudaFree(d_i2));
+	CHECK(cudaFree(d_xder1));
+	CHECK(cudaFree(d_xder2));
+	free(derivative1);
+	free(derivative2);
 }
 void disparity_selection(float* filtered_cost, float* best_cost, float* disparity_map, const int w, const int h, const int dmin,bool host_gpu_compare) {
 	const int size_d = D_MAX - D_MIN + 1;
@@ -124,7 +149,7 @@ void costVolumeOnCPU(unsigned char* i1, unsigned char* i2, float* cost, int w1, 
 	}
 }
 
-__global__ void costVolumOnGPU2(unsigned char* i1, unsigned char* i2, float* cost, int w1, int w2, int h1, int h2, int size_d, int dmin) {
+__global__ void costVolumOnGPU2(unsigned char* i1, unsigned char* i2, float* cost, float* derivative1,float* derivative2,int w1, int w2, int h1, int h2, int size_d, int dmin) {
 	// x threads for pixels [0, w*h]
 	int x = blockDim.x*blockIdx.x + threadIdx.x;
 	// y threads for d [0, size_d]
@@ -148,7 +173,7 @@ __global__ void costVolumOnGPU2(unsigned char* i1, unsigned char* i2, float* cos
 		float c = (1 - alpha) * th_color + alpha * th_grad;
 		if (((idx + d) < w2) && ((idx + d) >= 0)) 
 		{
-			c = (1 - alpha)*difference_term(i1[x], i2[x + d]) + alpha * difference_term_2(x_derivative(i1, idx, x, w1), x_derivative(i2, idx + d, x + d, w2));
+			c = (1 - alpha)*difference_term(i1[x], i2[x + d]) + alpha * difference_term_2(derivative1[x], derivative2[x + d]);
 		}
 		cost[id] = c;
 		//printf("%f\n", c);
@@ -230,11 +255,11 @@ __device__ float x_derivative(unsigned char* im, int col_index, int index, int w
 	{
 		return (float)((im[index + 1] - im[index - 1]) / 2);
 	}
-	else if (col_index + 1 >= width)
+	else if (col_index + 1 == width)
 	{
 		return (float)((im[index] - im[index - 1]) / 2);
 	}
-	else if (col_index - 1 < 0)
+	else if (col_index - 1 == 0)
 	{
 		return (float)((im[index + 1] - im[index]) / 2);
 	}
@@ -266,3 +291,49 @@ __device__ int getGlobalIdx_1D_2D()
 {
 	return blockIdx.x * blockDim.x * blockDim.y + threadIdx.y * blockDim.x + threadIdx.x;
 }
+
+__global__ void x_derivativeOnGPU(unsigned char* in, float* out, int w, int h) {
+	int id = blockIdx.x*blockDim.y + threadIdx.y;
+	int idx = id % w;
+	if (id >= w * h) return;
+	if ((idx - 1) >= 0 && idx + 1 < w) { 
+		out[id] = ((int) in[id + 1] - (int) in[id - 1])*1.0f / 2; 
+	}
+	else if (idx + 1 == w) {
+		out[id] = ((int) in[id] - (int)in[id-1])*1.0f / 2;
+	}
+	else if (idx - 1 == 0) { 
+		out[id] = ((int)in[id+1] - (int) in[id])*1.0f / 2;
+	}
+}
+/**
+__global__ void x_derivativeOnGPU(unsigned char* in, unsigned char* out, const int w, const int h) {
+int tdx = threadIdx.x;
+int id = blockIdx.x*blockDim.y + threadIdx.y;
+int idx = id % w;
+int idy = id / w;
+__shared__ float s_f[TILE_WIDTH][3];
+for (int i = 0; i < TILE_WIDTH; i++) {
+if ((idx - 1) >= 0 && idx + 1 < w) {
+s_f[i][0] = in[idx - 1];
+s_f[i][1] = in[idx];
+s_f[i][2] = in[idx + 1];
+}
+else if (idx + 1 == w) {
+s_f[i][0] = in[idx - 1];
+s_f[i][1] = in[idx];
+s_f[i][2] = in[idx];
+}
+else if (idx - 1 == 0) {
+s_f[i][0] = in[idx];
+s_f[i][1] = in[idx];
+s_f[i][2] = in[idx + 1];
+}
+__syncthreads();
+s_f[i][1] = (s_f[i][2] - s_f[i][0]) / 2;
+out[id] = s_f[i][1];
+
+}
+
+}
+**/
