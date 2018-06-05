@@ -21,7 +21,6 @@
     <ClInclude Include="stb_image.h" />
     <ClInclude Include="stb_image_write.h" />
     <ClInclude Include="SystemIncludes.h" />
-    <ClInclude Include="winner_take_all.cuh" />
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="costVolume.cu" />
@@ -32,7 +31,6 @@
     <CudaCompile Include="main.cu" />
     <CudaCompile Include="occlusion.cu" />
     <CudaCompile Include="rgb_to_grayscale.cu" />
-    <CudaCompile Include="winner_take_all.cu" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{DC4E5C2E-BB23-4D10-B330-608EF2209313}</ProjectGuid>

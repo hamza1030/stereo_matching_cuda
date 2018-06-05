@@ -27,6 +27,7 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 
+
 #include <algorithm>
 #include <iterator>
 #include <cmath>
@@ -38,6 +39,7 @@
 #include <iostream>
 #include <string>
 #include <time.h>
+#include <ctime>
 
 using namespace std;
 

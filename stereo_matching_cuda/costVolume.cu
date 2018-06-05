@@ -36,7 +36,7 @@ void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int
 	CHECK(cudaMemcpy(derivative2, d_xder2, h2*w2 * sizeof(float), cudaMemcpyDeviceToHost));
 	
 
-	dim3 blockDim(32, size_d);
+	dim3 blockDim(16, size_d);
 	dim3 gridDim;
 	//gridDim.x = (w1*h1 + blockDim.x - 1)/blockDim.x;
 	gridDim.x = iDivUp(w1*h1, blockDim.x);
@@ -50,7 +50,7 @@ void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int
 	// check kernel error
 	CHECK(cudaGetLastError());
 
-	//CHECK(cudaMemcpy(cost, d_cost, size_cost * sizeof(float), cudaMemcpyDeviceToHost));
+	CHECK(cudaMemcpy(cost, d_cost, size_cost * sizeof(float), cudaMemcpyDeviceToHost));
 
 	//host side
 	if (host_gpu_compare) {
@@ -58,10 +58,14 @@ void compute_cost(unsigned char* i1, unsigned char* i2, float* cost, int w1, int
 		float* h_derivative1 = (float*)malloc(h1*w1* sizeof(float));
 		float* h_derivative2 = (float*)malloc(h2*w2 * sizeof(float));
 		memset(h_cost, 0, sizeof(float)*(size_cost));
+		memset(h_derivative1, 0, sizeof(float)*(w1*h1));
+		memset(h_derivative2, 0, sizeof(float)*(w2*h2));
+		x_derivativeOnCpu(i1, h_derivative1, w1, h1);
+		x_derivativeOnCpu(i2, h_derivative2, w2, h2);
 
-		compute_costVolumeOnCpu(i1, i2, cost, h_derivative1, h_derivative2, w1, w2, h1, h2, size_d, dmin);
-		//bool verif = check_errors(h_cost, cost, size_cost);
-		//if (verif) cout << "Cost Volume ok!" << endl;
+		compute_costVolumeOnCpu(i1, i2, h_cost, h_derivative1, h_derivative2, w1, w2, h1, h2, size_d, dmin);
+		bool verif = check_errors(h_cost, cost, size_cost);
+		if (verif) cout << "Cost Volume ok!" << endl;
 
 		free(h_cost);
 		free(h_derivative1);
@@ -141,7 +145,7 @@ void costVolumeOnCPU(unsigned char* i1, unsigned char* i2, float* cost, int w1, 
 			for (int x = 0; x < w1; x++) {
 				int index = y * w1 + x;
 				int id = z * w1*h1 + index;
-				float c = (1.0f - alpha) * th_color + alpha * (1.0f*th_grad);
+				float c = (1.0f - alpha) * th_color + alpha *1.0f*th_grad;
 				int d = dmin + z;
 				if ((x + d < w2) && (x + d >= 0)) {
 					float diff_term = 1.0f*abs(i1[index] - i2[index + d]);
@@ -180,7 +184,7 @@ __global__ void costVolumOnGPU2(unsigned char* i1, unsigned char* i2, float* cos
 		float c = (1 - alpha) * th_color + 1.0f*alpha * th_grad;
 		if (((idx + d) < w2) && ((idx + d) >= 0)) 
 		{
-			c = (1.0f - alpha)*min(1.0f*((int)i1[x] - (int)i2[x + d]), th_color) + alpha * min(1.0f*(derivative1[x] - derivative2[x + d]), th_grad);
+			c = (1.0f - alpha)*min(1.0f*(abs((int)i1[x] - (int)i2[x + d])), th_color) + alpha * min(1.0f*(abs(derivative1[x] - derivative2[x + d])), th_grad);
 		}
 		cost[id] = c;
 		//printf("%f\n", c);
@@ -352,17 +356,27 @@ __host__ void x_derivativeOnCpu(unsigned char* in, float* out, int w, int h) {
 }
 
 __global__ void x_derivativeOnGPU(unsigned char* in, float* out, int w, int h) {
-	int id = blockIdx.x*blockDim.y + threadIdx.y;
-	int idx = id % w;
-	if (id >= w * h) return;
-	if ((idx - 1) >= 0 && idx + 1 < w) { 
-		out[id] = ((int) in[id + 1] - (int) in[id - 1])*1.0f / 2; 
-	}
-	else if (idx + 1 >= w) {
-		out[id] = ((int) in[id] - (int)in[id-1])*1.0f / 2;
-	}
-	else if (idx - 1 <=-1) { 
-		out[id] = ((int)in[id+1] - (int) in[id])*1.0f / 2;
+	int id = blockIdx.x*blockDim.x + threadIdx.x;
+	int i = id % w;
+	if (id < w * h) {
+		float c1 = 0;
+		float c2 = 0;
+		if (i - 1 >= 0 && i + 1 < w) {
+			c1 = (int)(in[id + 1]);
+			c2 = (int)(in[id - 1]);
+		}
+		else if (i + 1 >= w) {
+			c1 = (int)(in[id]);
+			c2 = (int)(in[id - 1]);
+
+		}
+		else if (i -1 <= -1){
+			c1 = (int)(in[id + 1]);
+			c2 = (int)(in[id]);
+
+		}
+		out[id] = 1.0f*(c2 - c1) / 2;
+
 	}
 }
 /**

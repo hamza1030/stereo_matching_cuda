@@ -7,11 +7,9 @@ __global__ void detect_occlusionOnGPU(float* disparityLeft, float* disparityRigh
 	if (id < w*h) {
 	    int d = (int) disparityLeft[id];
 		float diff = 1.0f*(D_LR + 1);
-		if (idx + d >= 0 && idx + d < w) {
-			diff = abs(d - disparityRight[id + d]);
+		if (idx + d < 0 || idx + d >= w || abs(d + disparityRight[id + d]) > D_LR) {
+			disparityLeft[id] = dOcclusion;
 		}
-		disparityLeft[id] = (diff > D_LR) ? dOcclusion:d;
-
 	}
 	
 }
@@ -50,14 +48,14 @@ void detect_occlusion(float* disparityLeft, float* disparityRight, const int dOc
 	int maxl = D_MAX;
 	int maxr = -1*D_MIN;
 	int minr = -1*D_MAX;
-	flToCh2OnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityLeft, d_dmapl, minl, maxl, n, dOcclusion);
-	flToCh2OnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityRight, d_dmapr, minr, maxr, n, dOcclusion);
+	//flToCh2OnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityLeft, d_dmapl, minl, maxl, n, dOcclusion);
+	//flToCh2OnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityRight, d_dmapr, minr, maxr, n, dOcclusion);
 	detect_occlusionOnGPU << <nBlocks, nThreadsPerBlock >> > (d_disparityLeft, d_disparityRight, dOcclusion, w, h);
-	detect_occlusionOnCPU(h_disparityLeft, h_disparityRight, dOcclusion, w, h);
-
-	CHECK(cudaMemcpy(disparityLeft, d_disparityLeft, n * sizeof(float), cudaMemcpyDeviceToHost));
+	//detect_occlusionOnCPU(h_disparityLeft, h_disparityRight, dOcclusion, w, h);
 	CHECK(cudaMemcpy(dmapl, d_dmapl, n, cudaMemcpyDeviceToHost));
 	CHECK(cudaMemcpy(dmapr, d_dmapr, n, cudaMemcpyDeviceToHost));
+	CHECK(cudaMemcpy(disparityLeft, d_disparityLeft, n * sizeof(float), cudaMemcpyDeviceToHost));
+
 
 	CHECK(cudaDeviceSynchronize());
 	CHECK(cudaGetLastError());

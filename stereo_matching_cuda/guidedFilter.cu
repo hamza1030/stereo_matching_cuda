@@ -77,14 +77,6 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, fl
 	integralOnCPU(h_im, integral_imCPU, w, h);
 	check_errors(integral_im, integral_imCPU, w * h);
 
-
-	/**
-	cout << "im(0,0) = " << h_im1[0] << " int(0,0) = " << integral_im1[0] << endl;
-	cout << "im(0,1) = " << h_im1[1] << " int(0,1) = " << integral_im1[1] << endl;
-	cout << "im(0,2) = " << h_im1[2] << " int(0,2) = " << integral_im1[2] << endl;
-	cout << "im(0,3) = " << h_im1[3] << " int(0,3) = " << integral_im1[3] << endl;
-	**/
-
 	float* d_integral_im;
 	CHECK(cudaMalloc((void**)&d_integral_im, n_fl));
 	CHECK(cudaMemcpy(d_integral_im, integral_im, n_fl, cudaMemcpyHostToDevice));
@@ -139,7 +131,6 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, fl
 	float* d_bk_int;
 	float* d_ak_mean;
 	float* d_bk_mean;
-	float* d_pk;
 	float* d_pki;
 	float* d_pki_mean;
 	float* d_convol;
@@ -158,7 +149,7 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, fl
 	float* bk_int = (float*)malloc(n_fl);
 
 
-	CHECK(cudaMalloc((void**)&d_pki, n_fl*size_d));
+	CHECK(cudaMalloc((void**)&d_pki, n_fl));
 	CHECK(cudaMalloc((void**)&d_pki_int, n_fl));
 	CHECK(cudaMalloc((void**)&d_pki_mean, n_fl));
 	CHECK(cudaMalloc((void**)&d_ak, n_fl));
@@ -203,14 +194,16 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, fl
 		CHECK(cudaMemcpy(d_q, empty, n_fl, cudaMemcpyHostToDevice));
 
 
-
 		//Cost -> pk
 		copyFromBigToLittleOnGPU << <gdim, bdim >> > (d_cost, d_pki, start, n);
+		
 		CHECK(cudaMemcpy(pki, d_pki, n_fl, cudaMemcpyDeviceToHost));
+		
 		//compute pk_mean
 		integral(pki, pki_int, w, h);
 		CHECK(cudaMemcpy(d_pki_int, pki_int, n_fl, cudaMemcpyHostToDevice));
 		computeBoxFilterOnGPU << < gdim2, bdim2 >> > (d_pki, d_pki_int, d_pki_mean, (const int)w, (const int)h);
+		//d_pki_mean : mean(pk)
 
 		//I*p
 		pixelMultOnGPU << <gdim, bdim >> > (d_im, d_pki, d_convol, n);
@@ -241,6 +234,7 @@ void compute_guided_filter(unsigned char* i, float* cost, float* filter_cost, fl
 		int label = dmin + s;
 		//qi ->total filtered
 		dispSelectOnGPU << <gdim, bdim >> > (d_q, d_filt_cost, d_dmap, (const int)n, label);
+		
 	}
 
 
@@ -354,7 +348,7 @@ __global__ void compute_ak_and_bk(float* mean, float* var, float* convol, float*
 	if (i < len)
 	{
 		c = 1.0f / (var[i] + EPS);
-		a[i] = 1.0f*(convol[i] - mean[i] * pk[i]) / c;
+		a[i] = 1.0f*(convol[i] - mean[i] * pk[i]) * c;
 		b[i] = 1.0f*pk[i] - 1.0f*mean[i] * a[i];
 	}
 }
@@ -449,7 +443,7 @@ __global__ void chToFlOnGPU(unsigned char* image, float* result, int len) {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i < len)
 	{
-		unsigned int c = image[i];
+		int c = (int) image[i];
 		result[i] = 1.0f*c;
 	}
 }
@@ -459,7 +453,7 @@ __global__ void flToChOnGPU(float* image, unsigned char* result, int len) {
 	if (i < len)
 	{
 		int c = image[i];
-		result[i] = (c > 255) ? 255 : (unsigned char)c;
+		result[i] = (c > 255) ? 255 : (unsigned char) c;
 	}
 }
 
@@ -621,6 +615,7 @@ __host__ void guided_filter_onCpu(unsigned char* im1, float* cost, float* filter
 		computeBoxFilterOnCPU(ak, ak_int, ak_mean, w, h);
 		integralOnCPU(bk, bk_int, w, h);
 		computeBoxFilterOnCPU(bk, bk_int, bk_mean, w, h);
+		unsigned char* qchar = (unsigned char*) malloc(n);
 		for (int k = 0; k < n; k++) {
 			q[k] = (ak_mean[k]*im[k]+bk_mean[k])*1.0f;
 			if (1.0f*filtered_cost[k] >= 1.0f*q[k]) {
@@ -629,7 +624,6 @@ __host__ void guided_filter_onCpu(unsigned char* im1, float* cost, float* filter
 
 			}
 		}
-
 	}
 	
 	flToChOnCPU(h_mean_im, mean, n);
