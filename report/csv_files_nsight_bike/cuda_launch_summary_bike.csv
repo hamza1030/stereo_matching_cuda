@@ -1,0 +1,26 @@
+﻿"Function Name","Module
+ID","Function
+ID","Count","Device
+%","Device Time
+(μs)","Min
+(μs)","Avg
+(μs)","Max
+(μs)","Context
+ID","Signature","Process
+ID"
+"rowSum","15","2","132","3.60","902,375.487","6,819.857","6,836.178","6,856.308","1","rowSum(float*, float*, int, int)","24984"
+"colSum","15","3","132","1.96","490,709.695","3,715.028","3,717.498","3,718.869","1","colSum(float*, float*, int, int)","24984"
+"computeBoxFilterOnGPU","14","10","132","1.35","337,694.543","2,523.622","2,558.292","2,595.720","1","computeBoxFilterOnGPU(float*, float*, float*, int, int)","24984"
+"costVolumOnGPU2","13","1","2","0.28","70,302.381","35,088.687","35,151.191","35,213.694","1","costVolumOnGPU2(unsigned char*, unsigned char*, float*, float*, float*, int, int, int, int, int, int)","24984"
+"compute_ak_and_bk","14","2","32","0.16","39,306.246","1,226.098","1,228.320","1,231.025","1","compute_ak_and_bk(float*, float*, float*, float*, float*, float*, int)","24984"
+"dispSelectOnGPU","14","17","32","0.08","19,847.252","603.576","620.227","646.649","1","dispSelectOnGPU(float*, float*, float*, int, int)","24984"
+"compute_q","14","6","32","0.08","19,796.986","616.568","618.656","620.921","1","compute_q(float*, float*, float*, float*, int)","24984"
+"fill_occlusionOnGPU1","12","17","1","0.08","19,229.343","19,229.343","19,229.343","19,229.343","1","fill_occlusionOnGPU1(float*, int, int, float)","24984"
+"pixelMultOnGPU","14","1","36","0.07","18,330.361","486.643","509.177","513.109","1","pixelMultOnGPU(float*, float*, float*, int)","24984"
+"copyFromBigToLittleOnGPU","14","3","32","0.05","13,741.830","428.913","429.432","430.130","1","copyFromBigToLittleOnGPU(float*, float*, int, int)","24984"
+"x_derivativeOnGPU","13","14","4","0.02","5,142.097","1,281.876","1,285.524","1,288.148","1","x_derivativeOnGPU(unsigned char*, float*, int, int)","24984"
+"sumArraysOnGPU","17","5","2","0.01","1,473.788","736.126","736.894","737.662","1","sumArraysOnGPU(unsigned char*, unsigned char*, int, int)","24984"
+"detect_occlusionOnGPU","12","7","1","0.00","1,187.023","1,187.023","1,187.023","1,187.023","1","detect_occlusionOnGPU(float*, float*, int, int, int)","24984"
+"pixelSousOnGPU","14","12","2","0.00","811.713","405.616","405.857","406.097","1","pixelSousOnGPU(float*, float*, float*, int)","24984"
+"flToChOnGPU","14","20","2","0.00","669.819","334.862","334.910","334.957","1","flToChOnGPU(float*, unsigned char*, int)","24984"
+"chToFlOnGPU","14","9","2","0.00","634.778","317.037","317.389","317.741","1","chToFlOnGPU(unsigned char*, float*, int)","24984"

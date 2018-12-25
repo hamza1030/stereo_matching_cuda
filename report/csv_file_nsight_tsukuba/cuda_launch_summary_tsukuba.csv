@@ -1,0 +1,26 @@
+﻿"Function Name","Module
+ID","Function
+ID","Count","Device
+%","Device Time
+(μs)","Min
+(μs)","Avg
+(μs)","Max
+(μs)","Context
+ID","Signature","Process
+ID"
+"rowSum","14","2","132","7.14","65,340.634","492.475","495.005","505.945","1","rowSum(float*, float*, int, int)","25852"
+"colSum","14","3","132","5.23","47,845.695","361.105","362.467","370.099","1","colSum(float*, float*, int, int)","25852"
+"computeBoxFilterOnGPU","11","10","132","0.71","6,502.921","47.970","49.265","54.147","1","computeBoxFilterOnGPU(float*, float*, float*, int, int)","25852"
+"costVolumOnGPU2","18","1","2","0.17","1,545.359","771.911","772.680","773.448","1","costVolumOnGPU2(unsigned char*, unsigned char*, float*, float*, float*, int, int, int, int, int, int)","25852"
+"compute_ak_and_bk","11","2","32","0.11","1,025.741","31.298","32.054","32.706","1","compute_ak_and_bk(float*, float*, float*, float*, float*, float*, int)","25852"
+"compute_q","11","6","32","0.06","525.434","16.001","16.420","16.929","1","compute_q(float*, float*, float*, float*, int)","25852"
+"pixelMultOnGPU","11","1","36","0.05","494.971","12.193","13.749","14.433","1","pixelMultOnGPU(float*, float*, float*, int)","25852"
+"dispSelectOnGPU","11","17","32","0.05","490.001","13.152","15.313","17.024","1","dispSelectOnGPU(float*, float*, float*, int, int)","25852"
+"copyFromBigToLittleOnGPU","11","3","32","0.04","372.465","11.360","11.640","11.937","1","copyFromBigToLittleOnGPU(float*, float*, int, int)","25852"
+"x_derivativeOnGPU","18","14","4","0.02","145.319","35.073","36.330","38.146","1","x_derivativeOnGPU(unsigned char*, float*, int, int)","25852"
+"fill_occlusionOnGPU1","13","17","1","0.01","127.013","127.013","127.013","127.013","1","fill_occlusionOnGPU1(float*, int, int, float)","25852"
+"sumArraysOnGPU","15","5","2","0.00","37.026","18.209","18.513","18.817","1","sumArraysOnGPU(unsigned char*, unsigned char*, int, int)","25852"
+"detect_occlusionOnGPU","13","7","1","0.00","30.946","30.946","30.946","30.946","1","detect_occlusionOnGPU(float*, float*, int, int, int)","25852"
+"pixelSousOnGPU","11","12","2","0.00","23.042","11.425","11.521","11.617","1","pixelSousOnGPU(float*, float*, float*, int)","25852"
+"chToFlOnGPU","11","9","2","0.00","19.554","9.377","9.777","10.177","1","chToFlOnGPU(unsigned char*, float*, int)","25852"
+"flToChOnGPU","11","20","2","0.00","19.457","9.632","9.729","9.825","1","flToChOnGPU(float*, unsigned char*, int)","25852"
